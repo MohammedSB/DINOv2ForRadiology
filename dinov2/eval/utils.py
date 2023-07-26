@@ -103,7 +103,7 @@ def extract_features(model, dataset, batch_size, num_workers, gather_on_cpu=Fals
         dataset=dataset_with_enumerated_targets,
         batch_size=batch_size,
         num_workers=num_workers,
-        sampler_type=SamplerType.DISTRIBUTED,
+        sampler_type=None,
         drop_last=False,
         shuffle=False,
     )
