@@ -6,3 +6,4 @@
 
 from .image_net import ImageNet
 from .image_net_22k import ImageNet22k
+from .nih_chest_xray import NIHChestXray

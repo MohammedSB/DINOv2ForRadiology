@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import logging
+from tqdm import tqdm
 from typing import Dict, Optional
 
 import torch
@@ -64,7 +65,7 @@ def evaluate(
     metric_logger = MetricLogger(delimiter="  ")
     header = "Test:"
 
-    for samples, targets, *_ in metric_logger.log_every(data_loader, 10, header):
+    for samples, targets, *_ in tqdm(metric_logger.log_every(data_loader, 10, header)):
         outputs = model(samples.to(device))
         targets = targets.to(device)
 
