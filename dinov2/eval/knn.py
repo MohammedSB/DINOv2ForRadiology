@@ -390,7 +390,7 @@ def main(args):
         transform=None,
         gather_on_cpu=args.gather_on_cpu,
         batch_size=args.batch_size,
-        num_workers=5,
+        num_workers=2,
         n_per_class_list=args.n_per_class_list,
         n_tries=args.n_tries,
     )
