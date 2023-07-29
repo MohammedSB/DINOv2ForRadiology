@@ -56,7 +56,7 @@ def get_args_parser(
         help="Validation dataset",
     )
     parser.add_argument(
-        "--test-datasets",
+        "--test-dataset",
         dest="test_dataset_strs",
         type=str,
         nargs="+",

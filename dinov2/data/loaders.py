@@ -61,6 +61,8 @@ def _parse_dataset_str(dataset_str: str):
         class_ = ImageNet22k
     elif name == "NIHChestXray":
         class_ = NIHChestXray
+        if "split" in kwargs:
+            kwargs["split"] = NIHChestXray.Split[kwargs["split"]]
     else:
         raise ValueError(f'Unsupported dataset "{name}"')
 

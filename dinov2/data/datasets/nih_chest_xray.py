@@ -21,11 +21,26 @@ import numpy as np
 logger = logging.getLogger("dinov2")
 _Target = int
 
+class _Split(Enum):
+    TRAIN = "train"
+    VAL = "val"
+    TEST = "test"
+
+    @property
+    def length(self) -> int:
+        split_lengths = {
+            _Split.TRAIN: 86_254,
+            _Split.TEST: 25_596,
+        }
+        return split_lengths[self]
+
 class NIHChestXray(VisionDataset):
+    Split = _Split
+
     def __init__(
         self,
         *,
-        split: str,
+        split: "NIHChestXray.Split",
         root: str,
         transforms: Optional[Callable] = None,
         transform: Optional[Callable] = None,
@@ -34,14 +49,30 @@ class NIHChestXray(VisionDataset):
         super().__init__(root, transforms, transform, target_transform)
         
         # Define paths for the data
-        self._root = root
-        self.labels_path = self._root + "labels"
-        self.images_path = self._root + split
+        self._root = root 
+        self.data_directory = ("/").join(root.split("/")[:-1]) # This defines the root for the data directory  
 
-        self.split = split
-        self.labels_df = pd.read_csv(self.labels_path + ".csv")
+        # Set the labels dataframe
+        labels_path = self.data_directory + os.sep + "labels"
+        self.labels = pd.read_csv(labels_path + ".csv")
 
-        self._extract_subset(split)
+        self._split = split
+        self._extract_subset()
+        self._size_check()
+
+    def _size_check(self):
+        data_in_root = len(os.listdir(self._root))
+
+        if self._split == _Split.TRAIN and data_in_root == self._split.length:
+            print(f"No missing data in {self._split.value.upper()} set")
+        else:
+            print(f"{self._split.length - data_in_root} x-ray's are missing from train set")
+            
+        if self._split == _Split.TEST and data_in_root == self._split.length:
+            print(f"No missing data in {self._split.value.upper()} set")
+        else:
+            print(f"{self._split.length - data_in_root} x-ray's are missing from test set")
+
 
     def _clean_labels(self):
         # Define inner split string function
@@ -50,29 +81,36 @@ class NIHChestXray(VisionDataset):
             return splitted
 
         # Turn all labels into list
-        self.labels_df["Finding Labels"] = self.labels_df["Finding Labels"].apply(spilt_string)
+        self.labels["Finding Labels"] = self.labels["Finding Labels"].apply(spilt_string)
 
         # Encoding of multilabeled targets
         mlb = preprocessing.MultiLabelBinarizer()
-        targets = mlb.fit_transform(self.labels_df["Finding Labels"])
+        targets = mlb.fit_transform(self.labels["Finding Labels"])
         self.class_names = mlb.classes_
-        self.targets = pd.DataFrame(targets, columns=mlb.classes_)
+        self._class_ids = [i for i in range(1, len(self.class_names)+1)]
+        self.targets = pd.DataFrame(targets, columns=mlb.classes_).to_numpy()
 
-    def _extract_subset(self, split):
+    def _extract_subset(self):
         # Define either train or testset
-        if split == "train" or split == "val":
-            subset = pd.read_csv(self.data_location + "train_val_list.txt", names=["Image Index"])
-        elif split == "test":
-            subset = pd.read_csv(self.data_location + "test_list.txt", names=["Image Index"])
+        if self._split == _Split.TRAIN or self._split == _Split.VAL:
+            subset = pd.read_csv(self.data_directory + "train_val_list.txt", names=["Image Index"])
+        elif self._split == _Split.TEST:
+            subset = pd.read_csv(self.data_directory + "test_list.txt", names=["Image Index"])
         else:
-            raise ValueError(f'Unsupported split "{split}"')
+            raise ValueError(f'Unsupported split "{self.split}"')
 
-        self.labels_df = pd.merge(self.labels_df, subset, how="inner", on=["Image Index"])
+        self.labels = pd.merge(self.labels, subset, how="inner", on=["Image Index"])
         self._clean_labels()
 
     @property
-    def split(self) -> str:
-        return self.split
+    def split(self) -> "NIHChestXray.Split":
+        return self._split
+    
+    def _get_class_ids(self) -> list:
+        return self._class_ids
+    
+    def _get_class_names(self) -> list:
+        return self.class_names
 
     def find_class_id(self, class_index: int) -> str:
         class_ids = self._get_class_ids()
@@ -83,31 +121,29 @@ class NIHChestXray(VisionDataset):
         return str(class_names[class_index])
 
     def get_image_data(self, index: int) :
-        data_point = self.labels_df.iloc[index]
+        data_point = self.labels[index]
         image_path = self.images_path + os.sep + data_point["Image Index"]
 
         # Read as gray because some of the images have extra layers in the 3rd dimension
         image = skimage.io.imread(image_path, as_gray=True).astype(np.float32)
-        image = np.expand_dims(image, axis=0)
-        image = self._transform(image)
+        image = np.stack((image,)*3, axis=-1)
 
-        image = torch.from_numpy(image)
         return image
 
     def get_target(self, index: int):
-        return None if self.split == "test" else self.targets.iloc[index]
+        return None if self._split == _Split.TEST else self.targets[index]
 
     def get_targets(self) -> Optional[np.ndarray]:
-        return None if self.split == "test" else self.targets
+        return None if self._split == _Split.TEST else self.targets
 
     def get_class_id(self, index: int) -> Optional[str]:
         class_id = self.targets[index]
-        return None if self.split == "test" else str(class_id)
+        return None if self._split == _Split.TEST else str(class_id)
 
     def get_class_name(self, index: int) -> Optional[str]:
         class_name_index = self.targets[index]
         class_name = self.class_names[class_name_index]
-        return None if self.split == "test" else str(class_name)
+        return None if self._split == _Split.TEST else str(class_name)
     
     def __getitem__(self, index):
         image = self.get_image_data(index)
@@ -119,4 +155,4 @@ class NIHChestXray(VisionDataset):
         return image, target
 
     def __len__(self) -> int:
-        return len(self.labels_df)
+        return len(self.labels)
