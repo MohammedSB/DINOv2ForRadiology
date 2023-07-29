@@ -50,7 +50,7 @@ class NIHChestXray(VisionDataset):
         
         # Define paths for the data
         self._root = root 
-        self.data_directory = ("/").join(root.split("/")[:-1]) # This defines the root for the data directory  
+        self.data_directory = ("/").join(root.split("/")[:-1]) # This defines the root for the entire data directory  
 
         # Set the labels dataframe
         labels_path = self.data_directory + os.sep + "labels"
@@ -122,7 +122,7 @@ class NIHChestXray(VisionDataset):
 
     def get_image_data(self, index: int) :
         data_point = self.labels[index]
-        image_path = self.images_path + os.sep + data_point["Image Index"]
+        image_path = self._root + os.sep + data_point["Image Index"]
 
         # Read as gray because some of the images have extra layers in the 3rd dimension
         image = skimage.io.imread(image_path, as_gray=True).astype(np.float32)
