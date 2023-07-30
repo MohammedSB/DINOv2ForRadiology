@@ -29,7 +29,7 @@ class _Split(Enum):
     @property
     def length(self) -> int:
         split_lengths = {
-            _Split.TRAIN: 86_254,
+            _Split.TRAIN: 86_524,
             _Split.TEST: 25_596,
         }
         return split_lengths[self]
@@ -63,15 +63,15 @@ class NIHChestXray(VisionDataset):
     def _size_check(self):
         data_in_root = len(os.listdir(self._root))
 
-        if self._split == _Split.TRAIN and data_in_root == self._split.length:
+        if self._split == _Split.TRAIN and data_in_root == self.split.length:
             print(f"No missing data in {self._split.value.upper()} set")
         else:
-            print(f"{self._split.length - data_in_root} x-ray's are missing from train set")
+            print(f"{self.split.length - data_in_root} x-ray's are missing from train set")
             
-        if self._split == _Split.TEST and data_in_root == self._split.length:
+        if self._split == _Split.TEST and data_in_root == self.split.length:
             print(f"No missing data in {self._split.value.upper()} set")
         else:
-            print(f"{self._split.length - data_in_root} x-ray's are missing from test set")
+            print(f"{self.split.length - data_in_root} x-ray's are missing from test set")
 
 
     def _clean_labels(self):
@@ -93,9 +93,9 @@ class NIHChestXray(VisionDataset):
     def _extract_subset(self):
         # Define either train or testset
         if self._split == _Split.TRAIN or self._split == _Split.VAL:
-            subset = pd.read_csv(self.data_directory + "train_val_list.txt", names=["Image Index"])
+            subset = pd.read_csv(self.data_directory + os.sep + "train_val_list.txt", names=["Image Index"])
         elif self._split == _Split.TEST:
-            subset = pd.read_csv(self.data_directory + "test_list.txt", names=["Image Index"])
+            subset = pd.read_csv(self.data_directory + os.sep + "test_list.txt", names=["Image Index"])
         else:
             raise ValueError(f'Unsupported split "{self.split}"')
 
@@ -121,7 +121,7 @@ class NIHChestXray(VisionDataset):
         return str(class_names[class_index])
 
     def get_image_data(self, index: int) :
-        data_point = self.labels[index]
+        data_point = self.labels.iloc[index]
         image_path = self._root + os.sep + data_point["Image Index"]
 
         # Read as gray because some of the images have extra layers in the 3rd dimension
