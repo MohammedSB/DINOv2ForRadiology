@@ -30,6 +30,7 @@ class _Split(Enum):
     def length(self) -> int:
         split_lengths = {
             _Split.TRAIN: 86_524,
+            _Split.VAL: 25_596,
             _Split.TEST: 25_596,
         }
         return split_lengths[self]
@@ -62,17 +63,7 @@ class NIHChestXray(VisionDataset):
 
     def _size_check(self):
         data_in_root = len(os.listdir(self._root))
-
-        if self._split == _Split.TRAIN and data_in_root == self.split.length:
-            print(f"No missing data in {self._split.value.upper()} set")
-        else:
-            print(f"{self.split.length - data_in_root} x-ray's are missing from train set")
-            
-        if self._split == _Split.TEST and data_in_root == self.split.length:
-            print(f"No missing data in {self._split.value.upper()} set")
-        else:
-            print(f"{self.split.length - data_in_root} x-ray's are missing from test set")
-
+        logger.info(f"{self.split.length - data_in_root} x-ray's are missing from {self._split.value.upper()} set")
 
     def _clean_labels(self):
         # Define inner split string function
@@ -125,8 +116,9 @@ class NIHChestXray(VisionDataset):
         image_path = self._root + os.sep + data_point["Image Index"]
 
         # Read as gray because some of the images have extra layers in the 3rd dimension
-        image = skimage.io.imread(image_path, as_gray=True).astype(np.float32)
-        image = np.stack((image,)*3, axis=-1)
+        image = skimage.io.imread(image_path, as_gray=True).astype(np.float16)
+        image = np.stack((image,)*3, axis=0)
+        image = torch.from_numpy(image)
 
         return image
 

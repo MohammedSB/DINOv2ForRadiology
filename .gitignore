@@ -3,6 +3,9 @@ dist/
 *.egg-info/
 **/__pycache__/
 
+models/*
+results/*
+
 **/.ipynb_checkpoints
 **/.ipynb_checkpoints/**
 
