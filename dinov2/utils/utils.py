@@ -10,6 +10,7 @@ import random
 import subprocess
 from urllib.parse import urlparse
 
+from PIL import Image
 import numpy as np
 import torch
 from torch import nn
@@ -43,6 +44,11 @@ def fix_random_seeds(seed=31):
     np.random.seed(seed)
     random.seed(seed)
 
+def show_image_from_tensor(image: torch.Tensor):
+    image = image.permute(1,2,0).numpy()
+    image = image[:, :, 0]
+    image = Image.fromarray(np.uint8(image))
+    image.show()
 
 def get_sha():
     cwd = os.path.dirname(os.path.abspath(__file__))

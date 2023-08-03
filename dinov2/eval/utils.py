@@ -65,7 +65,7 @@ def evaluate(
     metric_logger = MetricLogger(delimiter="  ")
     header = "Test:"
 
-    for samples, targets, *_ in tqdm(metric_logger.log_every(data_loader, 10, header)):
+    for samples, targets, *_ in metric_logger.log_every(data_loader, 10, header):
         outputs = model(samples.to(device))
         targets = targets.to(device)
 

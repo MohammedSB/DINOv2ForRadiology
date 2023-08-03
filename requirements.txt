@@ -9,7 +9,10 @@ xformers==0.0.18
 submitit
 --extra-index-url https://pypi.nvidia.com
 cuml-cu11
+scipy
 scikit-learn
+scikit-multilearn
 scikit-image
 pydicom
 torchxrayvision
+matplotlib

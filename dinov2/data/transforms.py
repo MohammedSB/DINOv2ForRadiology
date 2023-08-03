@@ -6,9 +6,10 @@
 
 from typing import Sequence
 
+import numpy as np
 import torch
 from torchvision import transforms
-
+import torchxrayvision as xrv
 
 class GaussianBlur(transforms.RandomApply):
     """
@@ -36,6 +37,8 @@ class MaybeToTensor(transforms.ToTensor):
         """
         if isinstance(pic, torch.Tensor):
             return pic
+        if isinstance(pic, np.ndarray):
+            return torch.from_numpy(pic)
         return super().__call__(pic)
 
 
@@ -88,5 +91,17 @@ def make_classification_eval_transform(
         transforms.CenterCrop(crop_size),
         MaybeToTensor(),
         make_normalize_transform(mean=mean, std=std),
+    ]
+    return transforms.Compose(transforms_list)
+
+def make_xray_classification_eval_transform(
+    *,
+    resize_size: int = 256,
+    crop_size: int = 224,
+) -> transforms.Compose:
+    transforms_list = [
+        xrv.datasets.XRayResizer(resize_size),
+        MaybeToTensor(),  
+        transforms.CenterCrop(crop_size),
     ]
     return transforms.Compose(transforms_list)

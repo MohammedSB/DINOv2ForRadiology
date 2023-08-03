@@ -30,7 +30,7 @@ class _Split(Enum):
     def length(self) -> int:
         split_lengths = {
             _Split.TRAIN: 86_524,
-            _Split.VAL: 25_596,
+            _Split.VAL: 86_524,
             _Split.TEST: 25_596,
         }
         return split_lengths[self]
@@ -52,6 +52,7 @@ class NIHChestXray(VisionDataset):
         # Define paths for the data
         self._root = root 
         self.data_directory = ("/").join(root.split("/")[:-1]) # This defines the root for the entire data directory  
+        self.curr_imgs = os.listdir(root)
 
         # Set the labels dataframe
         labels_path = self.data_directory + os.sep + "labels"
@@ -91,6 +92,14 @@ class NIHChestXray(VisionDataset):
             raise ValueError(f'Unsupported split "{self.split}"')
 
         self.labels = pd.merge(self.labels, subset, how="inner", on=["Image Index"])
+
+        #TODO : remove
+        to_add = []
+        for i in self.labels.index:
+            if self.labels.iloc[i]["Image Index"] in self.curr_imgs:
+                to_add.append(i)
+
+        self.labels = self.labels.iloc[to_add]
         self._clean_labels()
 
     @property
@@ -114,7 +123,7 @@ class NIHChestXray(VisionDataset):
     def get_image_data(self, index: int) :
         data_point = self.labels.iloc[index]
         image_path = self._root + os.sep + data_point["Image Index"]
-
+        
         # Read as gray because some of the images have extra layers in the 3rd dimension
         image = skimage.io.imread(image_path, as_gray=True).astype(np.float16)
         image = np.stack((image,)*3, axis=0)

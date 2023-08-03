@@ -89,7 +89,7 @@ def get_args_parser(
         val_dataset_str="ImageNet:split=VAL",
         nb_knn=[10, 20, 100, 200],
         temperature=0.07,
-        batch_size=256,
+        batch_size=16,
         n_per_class_list=[-1],
         n_tries=1,
     )

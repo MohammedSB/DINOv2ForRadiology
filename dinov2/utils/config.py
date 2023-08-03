@@ -67,7 +67,7 @@ def setup(args):
     """
     cfg = get_cfg_from_args(args)
     os.makedirs(args.output_dir, exist_ok=True)
-    default_setup(args)
+    default_setup(args) # TODO: CHANGE
     apply_scaling_rules_to_cfg(cfg)
     write_config(cfg, args.output_dir)
     return cfg
