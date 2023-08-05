@@ -352,7 +352,19 @@ def eval_linear(
         features = feature_model(data)
         outputs = linear_classifiers(features)
 
-        losses = {f"loss_{k}": nn.CrossEntropyLoss()(v, labels) for k, v in outputs.items()}
+        batch_size = labels.shape[0]
+        # losses = {f"loss_{k}": nn.CrossEntropyLoss()(v, torch.tensor([1, 0, 0, 0, 0, 0, 0, 0, 0, 0]).repeat(8, 1).cuda().float()) for k, v in outputs.items()}
+        
+        losses = {}
+        for k, v in outputs.items():
+            losses[f"loss_{k}"] = torch.tensor([0.0], device=torch.cuda.current_device())
+            for batch_index in range(batch_size): # Loop through each batch
+                batch_predictions = v[batch_index]
+                batch_labels = labels[batch_index]
+                for index, class_ in enumerate(batch_predictions): # Loop through each class prediciton
+                    losses[f"loss_{k}"] += nn.BCEWithLogitsLoss()(class_.float(), batch_labels[index].float())
+                losses[f"loss_{k}"] = losses[f"loss_{k}"] / len(batch_labels) # Take average of all binary classification losses
+
         loss = sum(losses.values())
 
         # compute the gradients
@@ -496,7 +508,7 @@ def run_eval_linear(
         dataset_str=train_dataset_str,
         transform=train_transform,
     )
-    training_num_classes = len(torch.unique(torch.Tensor(train_dataset.get_targets().astype(int))))
+    training_num_classes = train_dataset.get_num_classes()
     sampler_type = SamplerType.SHARDED_INFINITE
     # sampler_type = SamplerType.INFINITE
 

@@ -111,6 +111,9 @@ class NIHChestXray(VisionDataset):
     
     def _get_class_names(self) -> list:
         return self.class_names
+    
+    def get_num_classes(self) -> int:
+        return len(self.class_names)
 
     def find_class_id(self, class_index: int) -> str:
         class_ids = self._get_class_ids()
@@ -132,7 +135,7 @@ class NIHChestXray(VisionDataset):
         return image
 
     def get_target(self, index: int):
-        return None if self._split == _Split.TEST else self.targets[index]
+        return None if self._split == _Split.TEST else self.targets[index][:10]
 
     def get_targets(self) -> Optional[np.ndarray]:
         return None if self._split == _Split.TEST else self.targets

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/mlknn.py \
+PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/linear.py \
     --gpus 1 \
     --nodes 1 \
     --batch-size 8 \

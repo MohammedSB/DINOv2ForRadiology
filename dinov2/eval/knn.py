@@ -87,7 +87,7 @@ def get_args_parser(
     parser.set_defaults(
         train_dataset_str="ImageNet:split=TRAIN",
         val_dataset_str="ImageNet:split=VAL",
-        nb_knn=[10, 20, 100, 200],
+        nb_knn=[5],
         temperature=0.07,
         batch_size=16,
         n_per_class_list=[-1],
@@ -112,6 +112,8 @@ class KnnModule(torch.nn.Module):
         self.global_rank = distributed.get_global_rank()
         self.global_size = distributed.get_global_size()
 
+        print("nb_knn: ", nb_knn)
+
         self.device = device
         self.train_features_rank_T = train_features.chunk(self.global_size)[self.global_rank].T.to(self.device)
         self.candidates = train_labels.chunk(self.global_size)[self.global_rank].view(1, -1).to(self.device)
@@ -120,6 +122,8 @@ class KnnModule(torch.nn.Module):
         self.max_k = max(self.nb_knn)
         self.T = T
         self.num_classes = num_classes
+
+        print("max_k: ", self.max_k)
 
     def _get_knn_sims_and_labels(self, similarity, train_labels):
         topk_sims, indices = similarity.topk(self.max_k, largest=True, sorted=True)
@@ -320,7 +324,7 @@ def eval_knn_with_model(
     output_dir,
     train_dataset_str="ImageNet:split=TRAIN",
     val_dataset_str="ImageNet:split=VAL",
-    nb_knn=(10, 20, 100, 200),
+    nb_knn=(5),
     temperature=0.07,
     autocast_dtype=torch.float,
     accuracy_averaging=AccuracyAveraging.MEAN_ACCURACY,

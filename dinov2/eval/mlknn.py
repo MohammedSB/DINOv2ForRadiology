@@ -12,12 +12,14 @@ import os
 import sys
 from typing import List, Optional
 
+
 import numpy as np
 from scipy import sparse
 from sklearn import multiclass
+import sklearn.metrics 
 from sklearn.datasets import make_multilabel_classification
 from sklearn.neighbors import NearestNeighbors
-from skmultilearn.adapt import MLkNN
+
 from skmultilearn.utils import get_matrix_in_format
 
 import torch
@@ -29,8 +31,7 @@ from dinov2.data.transforms import make_classification_eval_transform
 from dinov2.eval.metrics import AccuracyAveraging, build_topk_accuracy_metric
 from dinov2.eval.setup import get_args_parser as get_setup_args_parser
 from dinov2.eval.setup import setup_and_build_model
-from dinov2.eval.utils import ModelWithNormalize, evaluate, extract_features
-
+from dinov2.eval.utils import ModelWithNormalize, MLkNN, evaluate, extract_features
 
 logger = logging.getLogger("dinov2")
 
@@ -95,7 +96,7 @@ def get_args_parser(
     parser.set_defaults(
         train_dataset_str="ImageNet:split=TRAIN",
         val_dataset_str="ImageNet:split=VAL",
-        nb_knn=[2],
+        nb_knn=[5],
         temperature=0.07,
         batch_size=16,
         n_per_class_list=[-1],
@@ -103,238 +104,6 @@ def get_args_parser(
     )
     return parser
 
-
-class MLKnnModule(torch.nn.Module):
-    """
-    Gets multilabel knn of test features from all processes on a chunk of the train features
-
-    Each rank gets a chunk of the train features as well as a chunk of the test features.
-    In `compute_neighbors`, for each rank one after the other, its chunk of test features
-    is sent to all devices, partial knns are computed with each chunk of train features
-    then collated back on the original device.
-
-
-    """
-
-    def __init__(self, train_features, train_labels, nb_knn, T, device, num_classes=14):
-        super().__init__()
-
-        self.global_rank = distributed.get_global_rank()
-        self.global_size = distributed.get_global_size()
-
-        self.device = device
-        self.train_features_rank_T = train_features.chunk(self.global_size)[self.global_rank].T.to(self.device)
-        self.candidates = train_labels.chunk(self.global_size)[self.global_rank].view(1, -1).to(self.device)
-
-        print("global_rank: ", self.global_rank)
-        print("global_size: ", self.global_size)
-
-        print("nb_knn: ", nb_knn)
-        self.nb_knn = nb_knn
-        self.max_k = max(self.nb_knn)
-        self.knn_ = NearestNeighbors(n_neighbors=self.nb_knn)
-        self.T = T
-        self.s = 1
-        self.num_classes = num_classes
-
-    def _get_knn_sims_and_labels(self, similarity, train_labels):
-        print("max k", self.max_k)
-        topk_sims, indices = similarity.topk(self.max_k, largest=True, sorted=True)
-        neighbors_labels = torch.gather(train_labels, 1, indices)
-        print("topk_sims", topk_sims)
-        print("topk_simsshape ", topk_sims.shape)
-        print("neighbors_labels", neighbors_labels)
-        print("neighbors_labels shape", neighbors_labels.shape)
-        return topk_sims, neighbors_labels
-
-    def _similarity_for_rank(self, features_rank, source_rank):
-        # Send the features from `source_rank` to all ranks
-        broadcast_shape = torch.tensor(features_rank.shape).to(self.device)
-        torch.distributed.broadcast(broadcast_shape, source_rank)
-        
-        print(source_rank)
-
-        broadcasted = features_rank
-        if self.global_rank != source_rank:
-            broadcasted = torch.zeros(*broadcast_shape, dtype=features_rank.dtype, device=self.device)
-        torch.distributed.broadcast(broadcasted, source_rank)
-
-        # Compute the neighbors for `source_rank` among `train_features_rank_T`
-        similarity_rank = torch.mm(broadcasted, self.train_features_rank_T)
-        logger.info(broadcasted)
-        logger.info(broadcasted.shape)
-        logger.info(similarity_rank)
-        logger.info(similarity_rank.shape)
-        candidate_labels = self.candidates.expand(len(similarity_rank), -1)
-        print("candidate_labels:", candidate_labels)
-        return self._get_knn_sims_and_labels(similarity_rank, candidate_labels)
-
-    def _gather_all_knn_for_rank(self, topk_sims, neighbors_labels, target_rank):
-        # Gather all neighbors for `target_rank`
-        topk_sims_rank = retrieved_rank = None
-        if self.global_rank == target_rank:
-            topk_sims_rank = [torch.zeros_like(topk_sims) for _ in range(self.global_size)]
-            retrieved_rank = [torch.zeros_like(neighbors_labels) for _ in range(self.global_size)]
-
-        torch.distributed.gather(topk_sims, topk_sims_rank, dst=target_rank)
-        torch.distributed.gather(neighbors_labels, retrieved_rank, dst=target_rank)
-
-        if self.global_rank == target_rank:
-            # Perform a second top-k on the k * global_size retrieved neighbors
-            topk_sims_rank = torch.cat(topk_sims_rank, dim=1)
-            retrieved_rank = torch.cat(retrieved_rank, dim=1)
-            results = self._get_knn_sims_and_labels(topk_sims_rank, retrieved_rank)
-            return results
-        return None
-
-    def _computer_prior(self, y):
-        """Helper function to compute for the prior probabilities
-
-        Parameters
-        ----------
-        y : numpy.ndarray or scipy.sparse
-            the training labels
-
-        Returns
-        -------
-        numpy.ndarray
-            the prior probability given true
-        numpy.ndarray
-            the prior probability given false
-        """
-        prior_prob_true = np.array(
-            (self.s + y.sum(axis=0)) / (self.s * 2 + self._num_instances)
-        )[0]
-        prior_prob_false = 1 - prior_prob_true
-
-        return (prior_prob_true, prior_prob_false)
-    
-    def _compute_cond(self, X, y):
-        """Helper function to compute for the posterior probabilities
-
-        Parameters
-        ----------
-        X : numpy.ndarray or scipy.sparse
-            input features, can be a dense or sparse matrix of size
-            :code:`(n_samples, n_features)`
-        y : numpy.ndaarray or scipy.sparse {0,1}
-            binary indicator matrix with label assignments.
-
-        Returns
-        -------
-        numpy.ndarray
-            the posterior probability given true
-        numpy.ndarray
-            the posterior probability given false
-        """
-
-        self.knn_.fit(X)
-        c = sparse.lil_matrix((self.num_classes, self.nb_knn + 1), dtype="i8")
-        cn = sparse.lil_matrix((self.num_classes, self.nb_knn + 1), dtype="i8")
-
-        label_info = get_matrix_in_format(y, "dok")
-
-        neighbors = [
-            a[self.ignore_first_neighbours :]
-            for a in self.knn_.kneighbors(
-                X, self.k + self.ignore_first_neighbours, return_distance=False
-            )
-        ]
-
-        for instance in range(self._num_instances):
-            deltas = label_info[neighbors[instance], :].sum(axis=0)
-            for label in range(self.num_classes):
-                if label_info[instance, label] == 1:
-                    c[label, deltas[0, label]] += 1
-                else:
-                    cn[label, deltas[0, label]] += 1
-
-        c_sum = c.sum(axis=1)
-        cn_sum = cn.sum(axis=1)
-
-        cond_prob_true = sparse.lil_matrix(
-            (self.num_classes, self.k + 1), dtype="float"
-        )
-        cond_prob_false = sparse.lil_matrix(
-            (self.num_classes, self.k + 1), dtype="float"
-        )
-        for label in range(self.num_classes):
-            for neighbor in range(self.k + 1):
-                cond_prob_true[label, neighbor] = (self.s + c[label, neighbor]) / (
-                    self.s * (self.k + 1) + c_sum[label, 0]
-                )
-                cond_prob_false[label, neighbor] = (self.s + cn[label, neighbor]) / (
-                    self.s * (self.k + 1) + cn_sum[label, 0]
-                )
-        return cond_prob_true, cond_prob_false
-
-
-    def compute_neighbors(self, features_rank):
-        for rank in range(self.global_size):
-            topk_sims, neighbors_labels = self._similarity_for_rank(features_rank, rank)
-            results = self._gather_all_knn_for_rank(topk_sims, neighbors_labels, rank)
-            if results is not None:
-                topk_sims_rank, neighbors_labels_rank = results
-        return topk_sims_rank, neighbors_labels_rank
-
-    def forward(self, features_rank):
-        """
-        Compute the results on all values of `self.nb_knn` neighbors from the full `self.max_k`
-        """
-        assert all(k <= self.max_k for k in self.nb_knn)
-
-        topk_sims, neighbors_labels = self.compute_neighbors(features_rank)
-        batch_size = neighbors_labels.shape[0]
-        topk_sims_transform = softmax(topk_sims / self.T, 1)
-        matmul = torch.mul(
-            one_hot(neighbors_labels, num_classes=self.num_classes),
-            topk_sims_transform.view(batch_size, -1, 1),
-        )
-
-        print("matmul", matmul)
-        probas_for_k = {k: torch.sum(matmul[:, :k, :], 1) for k in self.nb_knn}
-
-        print("probas_for_k", probas_for_k)
-
-        return probas_for_k
-
-
-class DictKeysModule(torch.nn.Module):
-    def __init__(self, keys):
-        super().__init__()
-        self.keys = keys
-
-    def forward(self, features_dict, targets):
-        for k in self.keys:
-            features_dict = features_dict[k]
-        return {"preds": features_dict, "target": targets}
-
-
-def create_module_dict(*, module, n_per_class_list, n_tries, nb_knn, train_features, train_labels):
-    modules = {}
-    mapping = create_class_indices_mapping(train_labels)
-    for npc in n_per_class_list:
-        if npc < 0:  # Only one try needed when using the full data
-            full_module = module(
-                train_features=train_features,
-                train_labels=train_labels,
-                nb_knn=nb_knn,
-            )
-            modules["full"] = ModuleDictWithForward({"1": full_module})
-            continue
-        all_tries = {}
-        for t in range(n_tries):
-            final_indices = filter_train(mapping, npc, seed=t)
-            k_list = list(set(nb_knn + [npc]))
-            k_list = sorted([el for el in k_list if el <= npc])
-            all_tries[str(t)] = module(
-                train_features=train_features[final_indices],
-                train_labels=train_labels[final_indices],
-                nb_knn=k_list,
-            )
-        modules[f"{npc} per class"] = ModuleDictWithForward(all_tries)
-
-    return ModuleDictWithForward(modules)
 
 
 def filter_train(mapping, n_per_class, seed):
@@ -378,54 +147,39 @@ def eval_knn(
     )
     logger.info(f"Train features created, shape {train_features.shape}.")
 
-    val_dataloader = make_data_loader(
-        dataset=val_dataset,
-        batch_size=batch_size,
-        num_workers=num_workers,
-        sampler_type=SamplerType.DISTRIBUTED,
-        drop_last=False,
-        shuffle=False,
-        persistent_workers=True,
+    model.eval()
+    logger.info("Extracting features for evaluation set...")
+    val_features, val_labels = extract_features(
+        model, val_dataset, batch_size, num_workers, gather_on_cpu=gather_on_cpu
     )
-    num_classes = train_labels.max() + 1
-    metric_collection = build_topk_accuracy_metric(accuracy_averaging, num_classes=5) #TODO: CHANGE
 
-    device = torch.cuda.current_device()
-    partial_module = partial(MLKnnModule, T=temperature, device=device, num_classes=num_classes)
-    knn_module_dict = create_module_dict(
-        module=partial_module,
-        n_per_class_list=n_per_class_list,
-        n_tries=n_tries,
-        nb_knn=nb_knn,
-        train_features=train_features,
-        train_labels=train_labels,
-    )
-    postprocessors, metrics = {}, {}
-    for n_per_class, knn_module in knn_module_dict.items():
-        for t, knn_try in knn_module.items():
-            postprocessors = {
-                **postprocessors,
-                **{(n_per_class, t, k): DictKeysModule([n_per_class, t, k]) for k in knn_try.nb_knn},
-            }
-            metrics = {**metrics, **{(n_per_class, t, k): metric_collection.clone() for k in knn_try.nb_knn}}
-    model_with_knn = torch.nn.Sequential(model, knn_module_dict)
+    train_features, train_labels = train_features.cpu().numpy(), train_labels.cpu().numpy()
+    val_features, val_labels = val_features.cpu().numpy(), val_labels.cpu().numpy()
 
+    results_dict = {}
     # ============ evaluation ... ============
     logger.info("Start the Multilabel k-NN classification.")
-    _, results_dict = evaluate(model_with_knn, val_dataloader, postprocessors, metrics, device)
+    for k in nb_knn:
 
-    # Averaging the results over the n tries for each value of n_per_class
-    for n_per_class, knn_module in knn_module_dict.items():
-        first_try = list(knn_module.keys())[0]
-        k_list = knn_module[first_try].nb_knn
-        for k in k_list:
-            keys = results_dict[(n_per_class, first_try, k)].keys()  # keys are e.g. `top-1` and `top-5`
-            results_dict[(n_per_class, k)] = {
-                key: torch.mean(torch.stack([results_dict[(n_per_class, t, k)][key] for t in knn_module.keys()]))
-                for key in keys
-            }
-            for t in knn_module.keys():
-                del results_dict[(n_per_class, t, k)]
+        results_dict[f"{k}"] = {}
+
+        classifier = MLkNN(k)
+        classifier.fit(train_features, train_labels)
+        results = classifier.predict(val_features).toarray()
+        
+        results_dict[f"{k}"]["Hamming Loss"]  = sklearn.metrics.hamming_loss(val_labels, results)
+        results_dict[f"{k}"]["Accuracy"]  = sklearn.metrics.accuracy_score(val_labels, results)
+        results_dict[f"{k}"]["mAUC Combined"]  = sklearn.metrics.roc_auc_score(val_labels, results, average="weighted")
+        results_dict[f"{k}"]["F1"]  = sklearn.metrics.f1_score(train_labels, results, average="micro")
+
+        # Disease-specific scores
+        disease_results = {"AUC": {}, "Accuracy": {}, "F1": {}}
+        for index, disease in enumerate(train_dataset.class_names):
+            disease_results["AUC"][disease] =  sklearn.metrics.roc_auc_score(train_labels[:, index], results[:, index])
+            disease_results["Accuracy"][disease] =  sklearn.metrics.accuracy_score(train_labels[:, index], results[:, index])
+            disease_results["F1"][disease] =  sklearn.metrics.f1_score(train_labels[:, index], results[:, index])
+
+        results_dict[f"{k}"]["Disease-specific"] = disease_results
 
     return results_dict
 
@@ -435,7 +189,7 @@ def eval_knn_with_model(
     output_dir,
     train_dataset_str="ImageNet:split=TRAIN",
     val_dataset_str="ImageNet:split=VAL",
-    nb_knn=(2),
+    nb_knn=(5, 20, 50, 100, 200),
     temperature=0.07,
     autocast_dtype=torch.float,
     accuracy_averaging=AccuracyAveraging.MEAN_ACCURACY,
@@ -447,8 +201,6 @@ def eval_knn_with_model(
     n_tries=1,
 ):
     
-    print("nb_knn", nb_knn)
-
     transform = transform or make_classification_eval_transform()
 
     train_dataset = make_dataset(
@@ -475,23 +227,14 @@ def eval_knn_with_model(
             n_tries=n_tries,
         )
 
-    results_dict = {}
-    if distributed.is_main_process():
-        for knn_ in results_dict_knn.keys():
-            top1 = results_dict_knn[knn_]["top-1"].item() * 100.0
-            top5 = results_dict_knn[knn_]["top-5"].item() * 100.0
-            results_dict[f"{knn_} Top 1"] = top1
-            results_dict[f"{knn_} Top 5"] = top5
-            logger.info(f"{knn_} classifier result: Top1: {top1:.2f} Top5: {top5:.2f}")
-
     metrics_file_path = os.path.join(output_dir, "results_eval_knn.json")
     with open(metrics_file_path, "a") as f:
-        for k, v in results_dict.items():
+        for k, v in results_dict_knn.items():
             f.write(json.dumps({k: v}) + "\n")
 
     if distributed.is_enabled():
         torch.distributed.barrier()
-    return results_dict
+    return results_dict_knn
 
 
 def main(args):
