@@ -18,7 +18,7 @@ from torch.nn.functional import one_hot, softmax
 import dinov2.distributed as distributed
 from dinov2.data import SamplerType, make_data_loader, make_dataset
 from dinov2.data.transforms import make_classification_eval_transform
-from dinov2.eval.metrics import AccuracyAveraging, build_topk_accuracy_metric
+from dinov2.eval.metrics import MetricAveraging, build_topk_accuracy_metric
 from dinov2.eval.setup import get_args_parser as get_setup_args_parser
 from dinov2.eval.setup import setup_and_build_model
 from dinov2.eval.utils import ModelWithNormalize, evaluate, extract_features
@@ -112,8 +112,6 @@ class KnnModule(torch.nn.Module):
         self.global_rank = distributed.get_global_rank()
         self.global_size = distributed.get_global_size()
 
-        print("nb_knn: ", nb_knn)
-
         self.device = device
         self.train_features_rank_T = train_features.chunk(self.global_size)[self.global_rank].T.to(self.device)
         self.candidates = train_labels.chunk(self.global_size)[self.global_rank].view(1, -1).to(self.device)
@@ -122,8 +120,6 @@ class KnnModule(torch.nn.Module):
         self.max_k = max(self.nb_knn)
         self.T = T
         self.num_classes = num_classes
-
-        print("max_k: ", self.max_k)
 
     def _get_knn_sims_and_labels(self, similarity, train_labels):
         topk_sims, indices = similarity.topk(self.max_k, largest=True, sorted=True)
@@ -327,7 +323,7 @@ def eval_knn_with_model(
     nb_knn=(5),
     temperature=0.07,
     autocast_dtype=torch.float,
-    accuracy_averaging=AccuracyAveraging.MEAN_ACCURACY,
+    accuracy_averaging=MetricAveraging.MEAN_ACCURACY,
     transform=None,
     gather_on_cpu=False,
     batch_size=256,
@@ -390,7 +386,7 @@ def main(args):
         nb_knn=args.nb_knn,
         temperature=args.temperature,
         autocast_dtype=autocast_dtype,
-        accuracy_averaging=AccuracyAveraging.MEAN_ACCURACY,
+        accuracy_averaging=MetricAveraging.MEAN_ACCURACY,
         transform=None,
         gather_on_cpu=args.gather_on_cpu,
         batch_size=args.batch_size,

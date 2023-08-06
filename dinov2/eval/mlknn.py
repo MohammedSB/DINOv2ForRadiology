@@ -28,7 +28,7 @@ from torch.nn.functional import one_hot, softmax
 import dinov2.distributed as distributed
 from dinov2.data import SamplerType, make_data_loader, make_dataset
 from dinov2.data.transforms import make_classification_eval_transform
-from dinov2.eval.metrics import AccuracyAveraging, build_topk_accuracy_metric
+from dinov2.eval.metrics import MetricAveraging, build_topk_accuracy_metric
 from dinov2.eval.setup import get_args_parser as get_setup_args_parser
 from dinov2.eval.setup import setup_and_build_model
 from dinov2.eval.utils import ModelWithNormalize, MLkNN, evaluate, extract_features
@@ -192,7 +192,7 @@ def eval_knn_with_model(
     nb_knn=(5, 20, 50, 100, 200),
     temperature=0.07,
     autocast_dtype=torch.float,
-    accuracy_averaging=AccuracyAveraging.MEAN_ACCURACY,
+    accuracy_averaging=MetricAveraging.MEAN_ACCURACY,
     transform=None,
     gather_on_cpu=False,
     batch_size=256,
@@ -247,7 +247,7 @@ def main(args):
         nb_knn=args.nb_knn,
         temperature=args.temperature,
         autocast_dtype=autocast_dtype,
-        accuracy_averaging=AccuracyAveraging.MEAN_ACCURACY,
+        accuracy_averaging=MetricAveraging.MEAN_ACCURACY,
         transform=None,
         gather_on_cpu=args.gather_on_cpu,
         batch_size=args.batch_size,

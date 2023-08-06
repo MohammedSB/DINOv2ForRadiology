@@ -82,6 +82,7 @@ def evaluate(
 
         for k, metric in metrics.items():
             metric_inputs = postprocessors[k](outputs, targets)
+            metric_inputs['preds'] = torch.sigmoid(metric_inputs['preds'])  # Apply sigmoid
             metric.update(**metric_inputs)
 
     metric_logger.synchronize_between_processes()
@@ -243,7 +244,7 @@ class MLkNN(MLClassifierBase):
 
     """
 
-    def __init__(self, k=10, s=1.0, ignore_first_neighbours=0, n_jobs=None):
+    def __init__(self, k=10, s=1.0, ignore_first_neighbours=0, n_jobs=None, metric="cosine"):
         """Initializes the classifier
 
         Parameters
@@ -274,7 +275,7 @@ class MLkNN(MLClassifierBase):
         self.s = s  # Smooth parameter
         self.ignore_first_neighbours = ignore_first_neighbours
         self.n_jobs = n_jobs
-        self.knn_ = NearestNeighbors(n_neighbors=self.k)
+        self.knn_ = NearestNeighbors(n_neighbors=self.k, metric=metric)
         self.copyable_attrs = ["k", "s", "ignore_first_neighbours", "n_jobs"]
 
     def _compute_prior(self, y):

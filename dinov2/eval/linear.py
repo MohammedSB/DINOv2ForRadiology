@@ -143,7 +143,7 @@ def get_args_parser(
         save_checkpoint_frequency=20,
         eval_period_iterations=1250,
         learning_rates=[1e-5, 2e-5, 5e-5, 1e-4, 2e-4, 5e-4, 1e-3, 2e-3, 5e-3, 1e-2, 2e-2, 5e-2, 0.1],
-        val_metric_type=MetricType.MEAN_ACCURACY,
+        val_metric_type=MetricType.MULTILABEL_ACCURACY,
         test_metric_types=None,
         classifier_fpath=None,
         val_class_mapping_fpath=None,
@@ -232,7 +232,10 @@ def scale_lr(learning_rates, batch_size):
     return learning_rates * (batch_size * distributed.get_global_size()) / 256.0
 
 
-def setup_linear_classifiers(sample_output, n_last_blocks_list, learning_rates, batch_size, num_classes=1000):
+def setup_linear_classifiers(sample_output, n_last_blocks_list, learning_rates, batch_size, num_classes=14):
+    """
+    Sets up the multiple linear classifiers with different hyperparameters to test out the most optimal one 
+    """
     linear_classifiers_dict = nn.ModuleDict()
     optim_param_groups = []
     for n in n_last_blocks_list:
@@ -245,7 +248,7 @@ def setup_linear_classifiers(sample_output, n_last_blocks_list, learning_rates, 
                 )
                 linear_classifier = linear_classifier.cuda()
                 linear_classifiers_dict[
-                    f"classifier_{n}_blocks_avgpool_{avgpool}_lr_{lr:.5f}".replace(".", "_")
+                    f"classifier_{n}_blocks_avgpool_{avgpool}_lr_{lr:.10f}".replace(".", "_")
                 ] = linear_classifier
                 optim_param_groups.append({"params": linear_classifier.parameters(), "lr": lr})
 
@@ -286,19 +289,21 @@ def evaluate_linear_classifiers(
 
     logger.info("")
     results_dict = {}
-    max_accuracy = 0
+    max_score = 0
     best_classifier = ""
+    eval_metric = str(list(metric)[0])
+
     for i, (classifier_string, metric) in enumerate(results_dict_temp.items()):
         logger.info(f"{prefixstring} -- Classifier: {classifier_string} * {metric}")
         if (
-            best_classifier_on_val is None and metric["top-1"].item() > max_accuracy
+            best_classifier_on_val is None and metric[eval_metric].item() > max_score
         ) or classifier_string == best_classifier_on_val:
-            max_accuracy = metric["top-1"].item()
+            max_score = metric[eval_metric].item()
             best_classifier = classifier_string
 
-    results_dict["best_classifier"] = {"name": best_classifier, "accuracy": max_accuracy}
+    results_dict["best_classifier"] = {"name": best_classifier, eval_metric: max_score}
 
-    logger.info(f"best classifier: {results_dict['best_classifier']}")
+    logger.info(f"best classifier: {results_dict['best_classifier']}") 
 
     if distributed.is_main_process():
         with open(metrics_file_path, "a") as f:
@@ -329,6 +334,7 @@ def eval_linear(
     resume=True,
     classifier_fpath=None,
     val_class_mapping=None,
+    multilabel=True,
 ):
     checkpointer = Checkpointer(linear_classifiers, output_dir, optimizer=optimizer, scheduler=scheduler)
     start_iter = checkpointer.resume_or_load(classifier_fpath or "", resume=resume).get("iteration", -1) + 1
@@ -351,19 +357,22 @@ def eval_linear(
 
         features = feature_model(data)
         outputs = linear_classifiers(features)
-
-        batch_size = labels.shape[0]
-        # losses = {f"loss_{k}": nn.CrossEntropyLoss()(v, torch.tensor([1, 0, 0, 0, 0, 0, 0, 0, 0, 0]).repeat(8, 1).cuda().float()) for k, v in outputs.items()}
         
-        losses = {}
-        for k, v in outputs.items():
-            losses[f"loss_{k}"] = torch.tensor([0.0], device=torch.cuda.current_device())
-            for batch_index in range(batch_size): # Loop through each batch
-                batch_predictions = v[batch_index]
-                batch_labels = labels[batch_index]
-                for index, class_ in enumerate(batch_predictions): # Loop through each class prediciton
-                    losses[f"loss_{k}"] += nn.BCEWithLogitsLoss()(class_.float(), batch_labels[index].float())
-                losses[f"loss_{k}"] = losses[f"loss_{k}"] / len(batch_labels) # Take average of all binary classification losses
+        if multilabel:  
+            losses = {}
+            batch_size = labels.shape[0]
+            for k, v in outputs.items():
+                per_class_loss = torch.tensor([0.0], device=torch.cuda.current_device())
+                for batch_index in range(batch_size): # Loop through each batch
+                    batch_predictions = v[batch_index]
+                    batch_labels = labels[batch_index]
+                    for index, class_ in enumerate(batch_predictions): # Loop through each class prediciton
+                        per_class_loss += nn.BCEWithLogitsLoss()(class_.float(), batch_labels[index].float())
+
+                    losses[f"loss_{k}"] = per_class_loss / len(batch_labels) # Take average of all binary classification losses
+        else:
+            losses = {f"loss_{k}": nn.CrossEntropyLoss()(v, labels) for k, v in outputs.items()}
+
 
         loss = sum(losses.values())
 
@@ -468,7 +477,7 @@ def test_on_datasets(
             class_mapping=class_mapping,
             best_classifier_on_val=best_classifier_on_val,
         )
-        results_dict[f"{test_dataset_str}_accuracy"] = 100.0 * dataset_results_dict["best_classifier"]["accuracy"]
+        results_dict[f"{test_dataset_str}_{metric_type}"] = dataset_results_dict["best_classifier"]
     return results_dict
 
 
@@ -490,10 +499,12 @@ def run_eval_linear(
     classifier_fpath=None,
     val_class_mapping_fpath=None,
     test_class_mapping_fpaths=[None],
-    val_metric_type=MetricType.MEAN_ACCURACY,
+    val_metric_type=MetricType.MULTILABEL_ACCURACY,
     test_metric_types=None,
 ):
     seed = 0
+
+    print(val_metric_type)
 
     if test_dataset_strs is None:
         test_dataset_strs = [val_dataset_str]
@@ -561,6 +572,9 @@ def run_eval_linear(
             class_mapping = None
         test_class_mappings.append(class_mapping)
 
+    # TODO: change
+    multilabel = True
+
     metrics_file_path = os.path.join(output_dir, "results_eval_linear.json")
     val_results_dict, feature_model, linear_classifiers, iteration = eval_linear(
         feature_model=feature_model,
@@ -580,6 +594,7 @@ def run_eval_linear(
         resume=resume,
         val_class_mapping=val_class_mapping,
         classifier_fpath=classifier_fpath,
+        multilabel=multilabel
     )
     results_dict = {}
     if len(test_dataset_strs) > 1 or test_dataset_strs[0] != val_dataset_str:
@@ -597,8 +612,7 @@ def run_eval_linear(
             prefixstring="",
             test_class_mappings=test_class_mappings,
         )
-    results_dict["best_classifier"] = val_results_dict["best_classifier"]["name"]
-    results_dict[f"{val_dataset_str}_accuracy"] = 100.0 * val_results_dict["best_classifier"]["accuracy"]
+    results_dict["best_classifier"] = val_results_dict["best_classifier"]
     logger.info("Test Results Dict " + str(results_dict))
 
     return results_dict
