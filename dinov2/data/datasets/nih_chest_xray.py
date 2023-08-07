@@ -135,7 +135,7 @@ class NIHChestXray(VisionDataset):
         return image
 
     def get_target(self, index: int):
-        return None if self._split == _Split.TEST else self.targets[index][:10]
+        return None if self._split == _Split.TEST else self.targets[index]
 
     def get_targets(self) -> Optional[np.ndarray]:
         return None if self._split == _Split.TEST else self.targets
