@@ -169,15 +169,15 @@ def eval_knn(
         
         results_dict[f"{k}"]["Hamming Loss"]  = sklearn.metrics.hamming_loss(val_labels, results)
         results_dict[f"{k}"]["Accuracy"]  = sklearn.metrics.accuracy_score(val_labels, results)
-        results_dict[f"{k}"]["mAUC Combined"]  = sklearn.metrics.roc_auc_score(val_labels, results, average="weighted")
-        results_dict[f"{k}"]["F1"]  = sklearn.metrics.f1_score(train_labels, results, average="micro")
+        results_dict[f"{k}"]["mAUC Combined"]  = sklearn.metrics.roc_auc_score(val_labels, results, average="macro")
+        results_dict[f"{k}"]["F1"]  = sklearn.metrics.f1_score(val_labels, results, average="macro")
 
         # Disease-specific scores
         disease_results = {"AUC": {}, "Accuracy": {}, "F1": {}}
         for index, disease in enumerate(train_dataset.class_names):
-            disease_results["AUC"][disease] =  sklearn.metrics.roc_auc_score(train_labels[:, index], results[:, index])
-            disease_results["Accuracy"][disease] =  sklearn.metrics.accuracy_score(train_labels[:, index], results[:, index])
-            disease_results["F1"][disease] =  sklearn.metrics.f1_score(train_labels[:, index], results[:, index])
+            disease_results["AUC"][disease] =  sklearn.metrics.roc_auc_score(val_labels[:, index], results[:, index])
+            disease_results["Accuracy"][disease] =  sklearn.metrics.accuracy_score(val_labels[:, index], results[:, index])
+            disease_results["F1"][disease] =  sklearn.metrics.f1_score(val_labels[:, index], results[:, index])
 
         results_dict[f"{k}"]["Disease-specific"] = disease_results
 
@@ -256,7 +256,6 @@ def main(args):
         n_tries=args.n_tries,
     )
     return 0
-
 
 if __name__ == "__main__":
     description = "DINOv2 Multilabel k-NN evaluation"

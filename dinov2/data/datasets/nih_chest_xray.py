@@ -135,19 +135,19 @@ class NIHChestXray(VisionDataset):
         return image
 
     def get_target(self, index: int):
-        return None if self._split == _Split.TEST else self.targets[index]
+        return self.targets[index]
 
-    def get_targets(self) -> Optional[np.ndarray]:
-        return None if self._split == _Split.TEST else self.targets
+    def get_targets(self) -> np.ndarray:
+        return self.targets
 
-    def get_class_id(self, index: int) -> Optional[str]:
+    def get_class_id(self, index: int) -> str:
         class_id = self.targets[index]
-        return None if self._split == _Split.TEST else str(class_id)
+        return str(class_id)
 
-    def get_class_name(self, index: int) -> Optional[str]:
+    def get_class_name(self, index: int) -> str:
         class_name_index = self.targets[index]
         class_name = self.class_names[class_name_index]
-        return None if self._split == _Split.TEST else str(class_name)
+        return str(class_name)
     
     def __getitem__(self, index):
         image = self.get_image_data(index)
