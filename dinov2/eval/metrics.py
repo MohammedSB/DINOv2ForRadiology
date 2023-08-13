@@ -11,9 +11,10 @@ from typing import Any, Dict, Optional
 import torch
 from torch import Tensor
 from torchmetrics import Metric, MetricCollection
-from torchmetrics.classification import MultilabelAUROC, MultilabelAccuracy, MulticlassAccuracy
+from torchmetrics.wrappers import ClasswiseWrapper
+from torchmetrics.classification import (MultilabelAUROC, MultilabelF1Score, MultilabelAccuracy, MulticlassF1Score,
+                                        MulticlassAccuracy, MulticlassAUROC, Accuracy, BinaryF1Score, BinaryAUROC)
 from torchmetrics.utilities.data import dim_zero_cat, select_topk
-
 
 logger = logging.getLogger("dinov2")
 
@@ -45,16 +46,18 @@ class MetricAveraging(Enum):
         return self.value
 
 
-def build_metric(metric_type: MetricType, *, num_classes: int, ks: Optional[tuple] = None):
+def build_metric(metric_type: MetricType, *, num_classes: int, labels = None, ks: Optional[tuple] = None):
     if metric_type == MetricType.MULTILABEL_ACCURACY:
         return build_multilabel_accuracy_metric(
             average_type=metric_type.accuracy_averaging,
             num_labels=num_classes,
+            labels=labels
         )
     elif metric_type == MetricType.MULTILABEL_AUROC:
         return build_multilabel_auroc_metric(
             average_type=metric_type.accuracy_averaging,
-            num_labels=num_classes
+            num_labels=num_classes,
+            labels=labels
         )
     if metric_type.accuracy_averaging is not None:
         return build_topk_accuracy_metric(
@@ -68,7 +71,6 @@ def build_metric(metric_type: MetricType, *, num_classes: int, ks: Optional[tupl
             ks=(1, 5) if ks is None else ks,
         )
 
-
     raise ValueError(f"Unknown metric type {metric_type}")
 
 
@@ -78,11 +80,28 @@ def build_multilabel_accuracy_metric(average_type: MetricAveraging, num_labels: 
     }
     return MetricCollection(metrics)
 
-def build_multilabel_auroc_metric(average_type: MetricAveraging, num_labels: int):
+def build_multilabel_auroc_metric(average_type: MetricAveraging, num_labels: int, labels=None):
     metrics: Dict[str, Metric] = {
-        f"auroc": MultilabelAUROC(num_labels=num_labels, average=average_type.value)
+        "auroc": MultilabelAUROC(num_labels=num_labels, average=average_type.value),
+        "class-specific": MetricCollection({
+            "auroc": ClasswiseWrapper(MultilabelAUROC(num_labels=num_labels, average=None), labels=labels, prefix="_"),
+        })
     }
     return MetricCollection(metrics)
+
+def build_multilabel_metrics(average_type: MetricAveraging, num_labels: int, labels=None):
+    metrics: Dict[str, Metric] = {
+        "auroc": MultilabelAUROC(num_labels=num_labels, average=average_type.value),
+        "accuracy": MultilabelAccuracy(num_labels=num_labels, average=average_type.value),
+        "f1": MultilabelF1Score(num_labels=num_labels, average=average_type.value),
+        "class-specific": MetricCollection({
+            "auroc": ClasswiseWrapper(MultilabelAUROC(num_labels=num_labels, average=None), labels=labels, prefix="_"),
+            "accuracy":ClasswiseWrapper(MultilabelAccuracy(num_labels=num_labels, average=None), labels=labels, prefix="_"),
+            "f1": ClasswiseWrapper(MultilabelF1Score(num_labels=num_labels, average=None), labels=labels, prefix="_")
+        })
+    }
+    return MetricCollection(metrics)
+    
 
 def build_topk_accuracy_metric(average_type: MetricAveraging, num_classes: int, ks: tuple = (1, 5)):
     metrics: Dict[str, Metric] = {
@@ -94,7 +113,7 @@ def build_topk_accuracy_metric(average_type: MetricAveraging, num_classes: int, 
 def build_topk_imagenet_real_accuracy_metric(num_classes: int, ks: tuple = (1, 5)):
     metrics: Dict[str, Metric] = {f"top-{k}": ImageNetReaLAccuracy(top_k=k, num_classes=int(num_classes)) for k in ks}
     return MetricCollection(metrics)
-
+    
 
 class ImageNetReaLAccuracy(Metric):
     is_differentiable: bool = False

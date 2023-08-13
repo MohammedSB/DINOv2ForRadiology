@@ -4,6 +4,7 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
+import toolz
 import argparse
 from functools import partial
 import json
@@ -24,7 +25,7 @@ import dinov2.distributed as distributed
 from dinov2.eval.metrics import MetricType, build_metric
 from dinov2.eval.setup import get_args_parser as get_setup_args_parser
 from dinov2.eval.setup import setup_and_build_model
-from dinov2.eval.utils import ModelWithIntermediateLayers, evaluate
+from dinov2.eval.utils import ModelWithIntermediateLayers, evaluate, apply_method_to_nested_values
 from dinov2.logging import MetricLogger
 
 
@@ -142,7 +143,7 @@ def get_args_parser(
         epoch_length=1250,
         save_checkpoint_frequency=20,
         eval_period_iterations=1250,
-        learning_rates=[1e-5, 2e-5, 5e-5, 1e-4, 2e-4, 5e-4, 1e-3, 2e-3, 5e-3, 1e-2, 2e-2, 5e-2, 0.1],
+        learning_rates=[1e-6, 2e-6, 5e-6, 1e-5, 2e-5, 5e-5, 1e-4, 2e-4, 5e-4, 1e-3, 2e-3, 5e-3],
         val_metric_type=MetricType.MULTILABEL_ACCURACY,
         test_metric_types=None,
         classifier_fpath=None,
@@ -241,7 +242,8 @@ def setup_linear_classifiers(sample_output, n_last_blocks_list, learning_rates, 
     for n in n_last_blocks_list:
         for avgpool in [False, True]:
             for _lr in learning_rates:
-                lr = scale_lr(_lr, batch_size)
+                # lr = scale_lr(_lr, batch_size)
+                lr = _lr
                 out_dim = create_linear_input(sample_output, use_n_blocks=n, use_avgpool=avgpool).shape[1]
                 linear_classifier = LinearClassifier(
                     out_dim, use_n_blocks=n, use_avgpool=avgpool, num_classes=num_classes
@@ -275,7 +277,8 @@ def evaluate_linear_classifiers(
     logger.info("running validation !")
 
     num_classes = len(class_mapping) if class_mapping is not None else training_num_classes
-    metric = build_metric(metric_type, num_classes=num_classes)
+    labels = list(data_loader.dataset.class_names)
+    metric = build_metric(metric_type, num_classes=num_classes, labels=labels)
     postprocessors = {k: LinearPostprocessor(v, class_mapping) for k, v in linear_classifiers.classifiers_dict.items()}
     metrics = {k: metric.clone() for k in linear_classifiers.classifiers_dict}
 
@@ -301,7 +304,10 @@ def evaluate_linear_classifiers(
             max_score = metric[eval_metric].item()
             best_classifier = classifier_string
 
-    results_dict["best_classifier"] = {"name": best_classifier, eval_metric: max_score}
+    results_dict["best_classifier"] = {"name": best_classifier, "results": apply_method_to_nested_values(
+                                                                            results_dict_temp[best_classifier],
+                                                                            method_name="item",
+                                                                            nested_types=(dict))}
 
     logger.info(f"best classifier: {results_dict['best_classifier']}") 
 
@@ -334,7 +340,7 @@ def eval_linear(
     resume=True,
     classifier_fpath=None,
     val_class_mapping=None,
-    multilabel=True,
+    is_multilabel=True,
 ):
     checkpointer = Checkpointer(linear_classifiers, output_dir, optimizer=optimizer, scheduler=scheduler)
     start_iter = checkpointer.resume_or_load(classifier_fpath or "", resume=resume).get("iteration", -1) + 1
@@ -358,7 +364,7 @@ def eval_linear(
         features = feature_model(data)
         outputs = linear_classifiers(features)
         
-        if multilabel:  
+        if is_multilabel:  
             losses = {}
             batch_size = labels.shape[0]
             for k, v in outputs.items():
@@ -573,7 +579,7 @@ def run_eval_linear(
         test_class_mappings.append(class_mapping)
 
     # TODO: change
-    multilabel = True
+    is_multilabel = True
 
     metrics_file_path = os.path.join(output_dir, "results_eval_linear.json")
     val_results_dict, feature_model, linear_classifiers, iteration = eval_linear(
@@ -594,7 +600,7 @@ def run_eval_linear(
         resume=resume,
         val_class_mapping=val_class_mapping,
         classifier_fpath=classifier_fpath,
-        multilabel=multilabel
+        is_multilabel=is_multilabel
     )
     results_dict = {}
     if len(test_dataset_strs) > 1 or test_dataset_strs[0] != val_dataset_str:

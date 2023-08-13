@@ -88,7 +88,9 @@ def evaluate(
     metric_logger.synchronize_between_processes()
     logger.info(f"Averaged stats: {metric_logger}")
 
-    stats = {k: metric.compute() for k, metric in metrics.items()}
+    # TODO: change
+    # stats = {k: metric.compute() for k, metric in metrics.items()} 
+    stats = apply_method_to_nested_values(metrics, "compute", nested_types=(MetricCollection, dict))
     metric_logger_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
     return metric_logger_stats, stats
 
@@ -463,3 +465,13 @@ class MLkNN(MLClassifierBase):
                 result[instance, label] = p_true / (p_true + p_false)
 
         return result
+    
+def apply_method_to_nested_values(d, method_name, nested_types=(dict)):
+    result = {}
+    for key, value in d.items():
+        if isinstance(value, nested_types):
+            result[key] = apply_method_to_nested_values(value, method_name)
+        else:
+            method = getattr(value, method_name)
+            result[key] = method()
+    return result

@@ -167,19 +167,19 @@ def eval_knn(
         classifier.fit(train_features, train_labels)
         results = classifier.predict(val_features).toarray()
         
-        results_dict[f"{k}"]["Hamming Loss"]  = sklearn.metrics.hamming_loss(val_labels, results)
-        results_dict[f"{k}"]["Accuracy"]  = sklearn.metrics.accuracy_score(val_labels, results)
-        results_dict[f"{k}"]["mAUC Combined"]  = sklearn.metrics.roc_auc_score(val_labels, results, average="macro")
-        results_dict[f"{k}"]["F1"]  = sklearn.metrics.f1_score(val_labels, results, average="macro")
+        results_dict[f"{k}"]["hamming"]  = sklearn.metrics.hamming_loss(val_labels, results)
+        results_dict[f"{k}"]["accuracy"]  = sklearn.metrics.accuracy_score(val_labels, results)
+        results_dict[f"{k}"]["auroc"]  = sklearn.metrics.roc_auc_score(val_labels, results, average="macro")
+        results_dict[f"{k}"]["f1"]  = sklearn.metrics.f1_score(val_labels, results, average="macro")
 
         # Disease-specific scores
-        disease_results = {"AUC": {}, "Accuracy": {}, "F1": {}}
+        disease_results = {"auroc": {}, "accuracy": {}, "f1": {}}
         for index, disease in enumerate(train_dataset.class_names):
-            disease_results["AUC"][disease] =  sklearn.metrics.roc_auc_score(val_labels[:, index], results[:, index])
-            disease_results["Accuracy"][disease] =  sklearn.metrics.accuracy_score(val_labels[:, index], results[:, index])
-            disease_results["F1"][disease] =  sklearn.metrics.f1_score(val_labels[:, index], results[:, index])
+            disease_results["auroc"][disease] =  sklearn.metrics.roc_auc_score(val_labels[:, index], results[:, index])
+            disease_results["accuracy"][disease] =  sklearn.metrics.accuracy_score(val_labels[:, index], results[:, index])
+            disease_results["f1"][disease] =  sklearn.metrics.f1_score(val_labels[:, index], results[:, index])
 
-        results_dict[f"{k}"]["Disease-specific"] = disease_results
+        results_dict[f"{k}"]["class-specific"] = disease_results
 
     return results_dict
 
