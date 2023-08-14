@@ -28,10 +28,9 @@ from torch.nn.functional import one_hot, softmax
 import dinov2.distributed as distributed
 from dinov2.data import SamplerType, make_data_loader, make_dataset
 from dinov2.data.transforms import make_classification_eval_transform
-from dinov2.eval.metrics import MetricAveraging, build_topk_accuracy_metric
-from dinov2.eval.setup import get_args_parser as get_setup_args_parser
-from dinov2.eval.setup import setup_and_build_model
-from dinov2.eval.utils import ModelWithNormalize, MLkNN, evaluate, extract_features
+from dinov2.eval.metrics import MetricCollection, MetricType, MetricAveraging, build_topk_accuracy_metric, build_metric
+from dinov2.eval.setup import get_args_parser as get_setup_args_parser, setup_and_build_model
+from dinov2.eval.utils import ModelWithNormalize, MLkNN, evaluate, extract_features, apply_method_to_nested_values
 
 logger = logging.getLogger("dinov2")
 
@@ -138,6 +137,7 @@ def eval_knn(
     gather_on_cpu,
     n_per_class_list=[-1],
     n_tries=1,
+    metric_type=MetricType.MULTILABEL_AUROC
 ):
     model = ModelWithNormalize(model)
 
@@ -153,6 +153,9 @@ def eval_knn(
         model, val_dataset, batch_size, num_workers, gather_on_cpu=gather_on_cpu
     )
 
+    labels = list(train_dataset.class_names)
+    num_classes = train_dataset.get_num_classes()
+
     train_features, train_labels = train_features.cpu().numpy(), train_labels.cpu().numpy()
     val_features, val_labels = val_features.cpu().numpy(), val_labels.cpu().numpy()
 
@@ -165,22 +168,15 @@ def eval_knn(
 
         classifier = MLkNN(k)
         classifier.fit(train_features, train_labels)
-        results = classifier.predict(val_features).toarray()
+        results = torch.tensor(classifier.predict_proba(val_features).toarray()).cuda()
         
-        results_dict[f"{k}"]["hamming"]  = sklearn.metrics.hamming_loss(val_labels, results)
-        results_dict[f"{k}"]["accuracy"]  = sklearn.metrics.accuracy_score(val_labels, results)
-        results_dict[f"{k}"]["auroc"]  = sklearn.metrics.roc_auc_score(val_labels, results, average="macro")
-        results_dict[f"{k}"]["f1"]  = sklearn.metrics.f1_score(val_labels, results, average="macro")
+        metric = build_metric(metric_type, num_classes=num_classes, labels=labels)
+        metric.update(**{"target": torch.tensor(val_labels).cuda(), "preds": results})
+        metric.compute()
 
-        # Disease-specific scores
-        disease_results = {"auroc": {}, "accuracy": {}, "f1": {}}
-        for index, disease in enumerate(train_dataset.class_names):
-            disease_results["auroc"][disease] =  sklearn.metrics.roc_auc_score(val_labels[:, index], results[:, index])
-            disease_results["accuracy"][disease] =  sklearn.metrics.accuracy_score(val_labels[:, index], results[:, index])
-            disease_results["f1"][disease] =  sklearn.metrics.f1_score(val_labels[:, index], results[:, index])
+        results_dict[f"{k}"] = apply_method_to_nested_values(metric, "compute", nested_types=(MetricCollection, dict))
 
-        results_dict[f"{k}"]["class-specific"] = disease_results
-
+    results_dict = apply_method_to_nested_values(results_dict, "item")
     return results_dict
 
 

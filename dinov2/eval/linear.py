@@ -144,7 +144,7 @@ def get_args_parser(
         save_checkpoint_frequency=20,
         eval_period_iterations=1250,
         learning_rates=[1e-6, 2e-6, 5e-6, 1e-5, 2e-5, 5e-5, 1e-4, 2e-4, 5e-4, 1e-3, 2e-3, 5e-3],
-        val_metric_type=MetricType.MULTILABEL_ACCURACY,
+        val_metric_type=MetricType.MULTILABEL_AUROC,
         test_metric_types=None,
         classifier_fpath=None,
         val_class_mapping_fpath=None,
@@ -505,12 +505,10 @@ def run_eval_linear(
     classifier_fpath=None,
     val_class_mapping_fpath=None,
     test_class_mapping_fpaths=[None],
-    val_metric_type=MetricType.MULTILABEL_ACCURACY,
+    val_metric_type=MetricType.MULTILABEL_AUROC,
     test_metric_types=None,
 ):
     seed = 0
-
-    print(val_metric_type)
 
     if test_dataset_strs is None:
         test_dataset_strs = [val_dataset_str]

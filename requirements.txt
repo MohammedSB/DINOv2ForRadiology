@@ -1,6 +1,7 @@
 --extra-index-url https://download.pytorch.org/whl/cu117
 torch==2.0.0
 torchvision==0.15.0
+torchaudio==2.0.0
 omegaconf
 torchmetrics==1.0.3
 fvcore
