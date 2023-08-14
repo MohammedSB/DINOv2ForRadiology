@@ -151,7 +151,7 @@ class NIHChestXray(VisionDataset):
     
     def __getitem__(self, index):
         image = self.get_image_data(index)
-        target = self.get_target(index)[:10]
+        target = self.get_target(index)
 
         if self.transforms is not None:
             image, target = self.transforms(image, target)
