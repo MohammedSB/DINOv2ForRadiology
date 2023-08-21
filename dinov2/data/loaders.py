@@ -11,7 +11,7 @@ from typing import Any, Callable, List, Optional, TypeVar
 import torch
 from torch.utils.data import Sampler
 
-from .datasets import NIHChestXray, ImageNet, ImageNet22k 
+from .datasets import NIHChestXray, ImageNet, ImageNet22k, MC
 from .samplers import EpochSampler, InfiniteSampler, ShardedInfiniteSampler
 
 
@@ -55,16 +55,17 @@ def _parse_dataset_str(dataset_str: str):
 
     if name == "ImageNet":
         class_ = ImageNet
-        if "split" in kwargs:
-            kwargs["split"] = ImageNet.Split[kwargs["split"]]
     elif name == "ImageNet22k":
         class_ = ImageNet22k
     elif name == "NIHChestXray":
         class_ = NIHChestXray
-        if "split" in kwargs:
-            kwargs["split"] = NIHChestXray.Split[kwargs["split"]]
+    elif name == "MC":
+        class_ = MC
     else:
         raise ValueError(f'Unsupported dataset "{name}"')
+    
+    if "split" in kwargs:
+        kwargs["split"] = class_.Split[kwargs["split"]]
 
     return class_, kwargs
 
