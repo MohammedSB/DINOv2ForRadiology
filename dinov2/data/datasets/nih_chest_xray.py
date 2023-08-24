@@ -31,6 +31,7 @@ class _Split(Enum):
 
 class NIHChestXray(VisionDataset):
     Split = _Split
+    MULTILABEL = True
 
     def __init__(
         self,
@@ -88,12 +89,12 @@ class NIHChestXray(VisionDataset):
         self.labels = pd.merge(self.labels, subset, how="inner", on=["Image Index"])
 
         #TODO : remove
-        # to_add = []
-        # for i in self.labels.index:
-        #     if self.labels.iloc[i]["Image Index"] in self.curr_imgs:
-        #         to_add.append(i)
+        to_add = []
+        for i in self.labels.index:
+            if self.labels.iloc[i]["Image Index"] in self.curr_imgs:
+                to_add.append(i)
 
-        # self.labels = self.labels.iloc[to_add]
+        self.labels = self.labels.iloc[to_add]
         self._clean_labels()
 
     @property
@@ -105,6 +106,9 @@ class NIHChestXray(VisionDataset):
     
     def _get_class_names(self) -> list:
         return self.class_names
+    
+    def get_length(self) -> int:
+        return self.__len__()
     
     def get_num_classes(self) -> int:
         return len(self.class_names)
@@ -145,7 +149,7 @@ class NIHChestXray(VisionDataset):
     
     def __getitem__(self, index):
         image = self.get_image_data(index)
-        target = self.get_target(index)
+        target = self.get_target(index)[:10]
 
         if self.transforms is not None:
             image, target = self.transforms(image, target)

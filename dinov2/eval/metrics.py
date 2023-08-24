@@ -13,7 +13,8 @@ from torch import Tensor
 from torchmetrics import Metric, MetricCollection
 from torchmetrics.wrappers import ClasswiseWrapper
 from torchmetrics.classification import (MultilabelAUROC, MultilabelF1Score, MultilabelAccuracy, MulticlassF1Score,
-                                        MulticlassAccuracy, MulticlassAUROC, Accuracy, BinaryF1Score, BinaryAUROC)
+                                        MulticlassAccuracy, MulticlassAUROC, Accuracy, BinaryF1Score, BinaryAUROC,
+                                        MulticlassJaccardIndex, Dice)
 from torchmetrics.utilities.data import dim_zero_cat, select_topk
 
 logger = logging.getLogger("dinov2")
@@ -26,6 +27,8 @@ class MetricType(Enum):
     MULTILABEL_AUROC = "multilabel_auc"
     PER_CLASS_ACCURACY = "per_class_accuracy"
     IMAGENET_REAL_ACCURACY = "imagenet_real_accuracy"
+
+    SEGMENTATION_METRICS = "segmentation_metrics"
 
     @property
     def accuracy_averaging(self):
@@ -40,7 +43,10 @@ class MetricAveraging(Enum):
     MEAN_PER_CLASS_ACCURACY = "macro"
     MULTILABEL_ACCURACY = "macro"
     MULTILABEL_AUROC = "macro"
+    MULTCLASS_JACCARD = "macro"
     PER_CLASS_ACCURACY = "none"
+
+    SEGMENTATION_METRICS = "macro"
 
     def __str__(self):
         return self.value
@@ -59,6 +65,11 @@ def build_metric(metric_type: MetricType, *, num_classes: int, labels = None, ks
             num_labels=num_classes,
             labels=labels
         )
+    elif metric_type == MetricType.SEGMENTATION_METRICS:
+        return build_multiclass_segmentation_metrics(
+            average_type=metric_type.accuracy_averaging,
+            num_labels=num_classes,
+        )
     if metric_type.accuracy_averaging is not None:
         return build_topk_accuracy_metric(
             average_type=metric_type.accuracy_averaging,
@@ -73,6 +84,13 @@ def build_metric(metric_type: MetricType, *, num_classes: int, labels = None, ks
 
     raise ValueError(f"Unknown metric type {metric_type}")
 
+
+def build_multiclass_segmentation_metrics(average_type: MetricAveraging, num_labels:int):
+    metrics: Dict[str, Metric] = {
+        "jaccard": MulticlassJaccardIndex(num_classes=num_labels, average=average_type.value, ignore_index=0),
+        "dice": Dice(num_classes=num_labels, average=average_type.value, ignore_index=0)
+    }
+    return MetricCollection(metrics)
 
 def build_multilabel_accuracy_metric(average_type: MetricAveraging, num_labels: int):
     metrics: Dict[str, Metric] = {

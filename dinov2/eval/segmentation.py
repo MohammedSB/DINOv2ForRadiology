@@ -12,6 +12,7 @@ import logging
 import os
 import sys
 from typing import List, Optional
+import math
 
 import numpy as np
 import torch
@@ -20,7 +21,8 @@ from torch.nn.parallel import DistributedDataParallel
 from fvcore.common.checkpoint import Checkpointer, PeriodicCheckpointer
 
 from dinov2.data import SamplerType, make_data_loader, make_dataset
-from dinov2.data.transforms import make_classification_eval_transform, make_classification_train_transform
+from dinov2.data.transforms import (make_classification_eval_transform, make_classification_train_transform,
+                                    make_segmentation_transform, make_segmentation_target_transform)
 import dinov2.distributed as distributed
 from dinov2.eval.metrics import MetricType, build_metric
 from dinov2.eval.setup import get_args_parser as get_setup_args_parser
@@ -145,13 +147,13 @@ def get_args_parser(
         epochs=10,
         batch_size=128,
         num_workers=8,
-        epoch_length=1250,
+        epoch_length=None,
         save_checkpoint_frequency=20,
         eval_period_iterations=1250,
         learning_rates=[1e-6, 2e-6, 5e-6, 1e-5, 2e-5, 5e-5, 1e-4, 2e-4, 5e-4, 1e-3, 2e-3, 5e-3],
         val_metric_type=MetricType.MULTILABEL_AUROC,
         test_metric_types=None,
-        classifier_fpath=None,
+        segmentor_fpath=None,
         val_class_mapping_fpath=None,
         test_class_mapping_fpaths=[None],
         decoder=["linear"]
@@ -174,38 +176,33 @@ def _pad_and_collate(batch):
     ]
     return torch.utils.data.default_collate(padded_batch)
 
-
-def create_linear_input(x_tokens_list, use_n_blocks, use_avgpool):
-    intermediate_output = x_tokens_list[-use_n_blocks:]
-    output = torch.cat([class_token for _, class_token in intermediate_output], dim=-1)
-    if use_avgpool:
-        output = torch.cat(
-            (
-                output,
-                torch.mean(intermediate_output[-1][0], dim=1),  # patch tokens
-            ),
-            dim=-1,
-        )
-        output = output.reshape(output.shape[0], -1)
-    return output.float()
-
+class TransformerEncoder(torch.nn.Module):
+    def __init__(self, encoder) -> None:
+        super(TransformerEncoder, self).__init__()
+        self.encoder = encoder
+    
+    def forward(self, x):
+        with torch.no_grad(): 
+            features = self.encoder.forward_features(x)['x_norm_patchtokens']
+        return features
 
 class LinearDecoder(torch.nn.Module):
     """Linear decoder head"""
-    def __init__(self, in_channels, tokenW=32, tokenH=32, num_classes=1):
+    def __init__(self, in_channels, tokenW=32, tokenH=32, num_classes=3):
         super(LinearDecoder, self).__init__()
 
         self.in_channels = in_channels
         self.width = tokenW
         self.height = tokenH
         self.decoder = torch.nn.Conv2d(in_channels, num_classes, (1,1))
+        self.decoder.weight.data.normal_(mean=0.0, std=0.01)
+        self.decoder.bias.data.zero_()
 
     def forward(self, embeddings):
         embeddings = embeddings.reshape(-1, self.height, self.width, self.in_channels)
         embeddings = embeddings.permute(0,3,1,2)
 
         return self.decoder(embeddings)
-
 
 class AllDecoders(nn.Module):
     def __init__(self, decoders_dict):
@@ -233,26 +230,23 @@ class LinearPostprocessor(nn.Module):
             "target": targets,
         }
 
-
-def setup_decoders(sample_output, n_last_blocks_list, learning_rates, batch_size, num_classes=14):
+def setup_decoders(embed_dim, learning_rates, num_classes=14):
     """
-    Sets up the multiple linear classifiers with different hyperparameters to test out the most optimal one 
+    Sets up the multiple segmentors with different hyperparameters to test out the most optimal one 
     """
     decoders_dict = nn.ModuleDict()
     optim_param_groups = []
-    for n in n_last_blocks_list:
-        for avgpool in [False, True]:
-            for _lr in learning_rates:
-                lr = _lr
-                out_dim = create_linear_input(sample_output, use_n_blocks=n, use_avgpool=avgpool).shape[1]
-                decoder = LinearDecoder(
-                    out_dim, num_classes=num_classes
-                )
-                decoder = decoder.cuda()
-                decoders_dict[
-                    f"classifier_{n}_blocks_avgpool_{avgpool}_lr_{lr:.10f}".replace(".", "_")
-                ] = decoder
-                optim_param_groups.append({"params": decoder.parameters(), "lr": lr})
+    for avgpool in [False, True]:
+        for _lr in learning_rates:
+            lr = _lr
+            decoder = LinearDecoder(
+                embed_dim, num_classes=num_classes
+            )
+            decoder = decoder.cuda()
+            decoders_dict[
+                f"segmentor_avgpool_{avgpool}_lr_{lr:.10f}".replace(".", "_")
+            ] = decoder
+            optim_param_groups.append({"params": decoder.parameters(), "lr": lr})
 
     decoders = AllDecoders(decoders_dict)
     if distributed.is_enabled():
@@ -262,7 +256,7 @@ def setup_decoders(sample_output, n_last_blocks_list, learning_rates, batch_size
 
 
 @torch.no_grad()
-def evaluate_linear_classifiers(
+def evaluate_segmentors(
     feature_model,
     decoders,
     data_loader,
@@ -293,23 +287,23 @@ def evaluate_linear_classifiers(
     logger.info("")
     results_dict = {}
     max_score = 0
-    best_classifier = ""
+    best_segmentor = ""
     eval_metric = str(list(metric)[0])
 
     for i, (classifier_string, metric) in enumerate(results_dict_temp.items()):
-        logger.info(f"{prefixstring} -- Classifier: {classifier_string} * {metric}")
+        logger.info(f"{prefixstring} -- Segmentor: {classifier_string} * {metric}")
         if (
             best_classifier_on_val is None and metric[eval_metric].item() > max_score
         ) or classifier_string == best_classifier_on_val:
             max_score = metric[eval_metric].item()
-            best_classifier = classifier_string
+            best_segmentor = classifier_string
 
-    results_dict["best_classifier"] = {"name": best_classifier, "results": apply_method_to_nested_values(
-                                                                            results_dict_temp[best_classifier],
+    results_dict["best_segmentor"] = {"name": best_segmentor, "results": apply_method_to_nested_values(
+                                                                            results_dict_temp[best_segmentor],
                                                                             method_name="item",
                                                                             nested_types=(dict))}
 
-    logger.info(f"best classifier: {results_dict['best_classifier']}") 
+    logger.info(f"best segmentor: {results_dict['best_segmentor']}") 
 
     if distributed.is_main_process():
         with open(metrics_file_path, "a") as f:
@@ -338,11 +332,11 @@ def eval_decoders(
     metric_type,
     training_num_classes,
     resume=True,
-    classifier_fpath=None,
+    segmentor_fpath=None,
     val_class_mapping=None,
 ):
     checkpointer = Checkpointer(decoders, output_dir, optimizer=optimizer, scheduler=scheduler)
-    start_iter = checkpointer.resume_or_load(classifier_fpath or "", resume=resume).get("iteration", -1) + 1
+    start_iter = checkpointer.resume_or_load(segmentor_fpath or "", resume=resume).get("iteration", -1) + 1
 
     periodic_checkpointer = PeriodicCheckpointer(checkpointer, checkpoint_period, max_iter=max_iter)
     iteration = start_iter
@@ -363,6 +357,11 @@ def eval_decoders(
         features = feature_model(data)
         outputs = decoders(features)
         
+        # Upsample (interpolate) output/logit map if not same size.
+        h_hat, h = outputs.shape[2], labels.shape[1] 
+        if h_hat != h:
+            outputs = torch.nn.functional.interpolate(outputs, size=h, mode="bilinear", align_corners=False)
+
         # important to set ignore_index to 0 to ignore predicting the background.
         losses = {f"loss_{k}": nn.CrossEntropyLoss(ignore_index=0)(v, labels) for k, v in outputs.items()}
 
@@ -393,7 +392,7 @@ def eval_decoders(
         periodic_checkpointer.step(iteration)
 
         if eval_period > 0 and (iteration + 1) % eval_period == 0 and iteration != max_iter - 1:
-            _ = evaluate_linear_classifiers(
+            _ = evaluate_segmentors(
                 feature_model=feature_model,
                 decoders=remove_ddp_wrapper(decoders),
                 data_loader=val_data_loader,
@@ -408,7 +407,7 @@ def eval_decoders(
 
         iteration = iteration + 1
 
-    val_results_dict = evaluate_linear_classifiers(
+    val_results_dict = evaluate_segmentors(
         feature_model=feature_model,
         decoders=remove_ddp_wrapper(decoders),
         data_loader=val_data_loader,
@@ -424,13 +423,13 @@ def eval_decoders(
 def make_eval_data_loader(test_dataset_str, batch_size, num_workers, metric_type):
     test_dataset = make_dataset(
         dataset_str=test_dataset_str,
-        transform=make_classification_eval_transform(),
+        transform=make_segmentation_transform(),
     )
     test_data_loader = make_data_loader(
         dataset=test_dataset,
         batch_size=batch_size,
         num_workers=num_workers,
-        sampler_type=SamplerType.DISTRIBUTED,
+        sampler_type=None, 
         drop_last=False,
         shuffle=False,
         persistent_workers=False,
@@ -457,7 +456,7 @@ def test_on_datasets(
     for test_dataset_str, class_mapping, metric_type in zip(test_dataset_strs, test_class_mappings, test_metric_types):
         logger.info(f"Testing on {test_dataset_str}")
         test_data_loader = make_eval_data_loader(test_dataset_str, batch_size, num_workers, metric_type)
-        dataset_results_dict = evaluate_linear_classifiers(
+        dataset_results_dict = evaluate_segmentors(
             feature_model,
             remove_ddp_wrapper(decoders),
             test_data_loader,
@@ -469,11 +468,11 @@ def test_on_datasets(
             class_mapping=class_mapping,
             best_classifier_on_val=best_classifier_on_val,
         )
-        results_dict[f"{test_dataset_str}_{metric_type}"] = dataset_results_dict["best_classifier"]
+        results_dict[f"{test_dataset_str}_{metric_type}"] = dataset_results_dict["best_segmentor"]
     return results_dict
 
 
-def run_eval_linear(
+def run_eval_segmentation(
     model,
     output_dir,
     train_dataset_str,
@@ -488,7 +487,7 @@ def run_eval_linear(
     autocast_dtype,
     test_dataset_strs=None,
     resume=True,
-    classifier_fpath=None,
+    segmentor_fpath=None,
     val_class_mapping_fpath=None,
     test_class_mapping_fpaths=[None],
     val_metric_type=MetricType.MULTILABEL_AUROC,
@@ -504,34 +503,34 @@ def run_eval_linear(
         assert len(test_metric_types) == len(test_dataset_strs)
     assert len(test_dataset_strs) == len(test_class_mapping_fpaths)
 
-    train_transform = make_classification_train_transform()
+    train_transform = make_segmentation_transform()
+    target_transform = make_segmentation_target_transform()
     train_dataset = make_dataset(
         dataset_str=train_dataset_str,
         transform=train_transform,
+        target_transform=target_transform
     )
     training_num_classes = train_dataset.get_num_classes()
-    sampler_type = SamplerType.SHARDED_INFINITE
-    # sampler_type = SamplerType.INFINITE
+    if epoch_length == None:
+        epoch_length = math.ceil(train_dataset.get_length() / batch_size)
+        eval_period_iterations = epoch_length * 5
+    sampler_type = SamplerType.INFINITE
 
-    n_last_blocks_list = [1, 4]
-    n_last_blocks = max(n_last_blocks_list)
-    autocast_ctx = partial(torch.cuda.amp.autocast, enabled=True, dtype=autocast_dtype)
-    feature_model = ModelWithIntermediateLayers(model, n_last_blocks, autocast_ctx)
-    sample_output = feature_model(train_dataset[0][0].unsqueeze(0).cuda())
+    embed_dim = model.embed_dim
 
     decoders, optim_param_groups = setup_decoders(
-        sample_output,
-        n_last_blocks_list,
+        embed_dim,
         learning_rates,
-        batch_size,
         training_num_classes,
     )
 
-    optimizer = torch.optim.Adam(optim_param_groups, momentum=0.9, weight_decay=0)
+    feature_model = TransformerEncoder(model)
+
+    optimizer = torch.optim.Adam(optim_param_groups)
     max_iter = epochs * epoch_length
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iter, eta_min=0)
     checkpointer = Checkpointer(decoders, output_dir, optimizer=optimizer, scheduler=scheduler)
-    start_iter = checkpointer.resume_or_load(classifier_fpath or "", resume=resume).get("iteration", -1) + 1
+    start_iter = checkpointer.resume_or_load(segmentor_fpath or "", resume=resume).get("iteration", -1) + 1
     train_data_loader = make_data_loader(
         dataset=train_dataset,
         batch_size=batch_size,
@@ -580,8 +579,7 @@ def run_eval_linear(
         training_num_classes=training_num_classes,
         resume=resume,
         val_class_mapping=val_class_mapping,
-        classifier_fpath=classifier_fpath,
-        is_multilabel=is_multilabel
+        segmentor_fpath=segmentor_fpath,
     )
     results_dict = {}
     if len(test_dataset_strs) > 1 or test_dataset_strs[0] != val_dataset_str:
@@ -595,11 +593,11 @@ def run_eval_linear(
             metrics_file_path,
             training_num_classes,
             iteration,
-            val_results_dict["best_classifier"]["name"],
+            val_results_dict["best_segmentor"]["name"],
             prefixstring="",
             test_class_mappings=test_class_mappings,
         )
-    results_dict["best_classifier"] = val_results_dict["best_classifier"]
+    results_dict["best_segmentor"] = val_results_dict["best_segmentor"]
     logger.info("Test Results Dict " + str(results_dict))
 
     return results_dict
@@ -607,7 +605,7 @@ def run_eval_linear(
 
 def main(args):
     model, autocast_dtype = setup_and_build_model(args)
-    run_eval_linear(
+    run_eval_segmentation(
         model=model,
         output_dir=args.output_dir,
         train_dataset_str=args.train_dataset_str,
@@ -622,7 +620,7 @@ def main(args):
         learning_rates=args.learning_rates,
         autocast_dtype=autocast_dtype,
         resume=not args.no_resume,
-        classifier_fpath=args.classifier_fpath,
+        segmentor_fpath=args.segmentor_fpath,
         val_metric_type=args.val_metric_type,
         test_metric_types=args.test_metric_types,
         val_class_mapping_fpath=args.val_class_mapping_fpath,
@@ -632,7 +630,7 @@ def main(args):
 
 
 if __name__ == "__main__":
-    description = "DINOv2 segmentation evaluation"
+    description = "Segmentation evaluation"
     args_parser = get_args_parser(description=description)
     args = args_parser.parse_args()
     sys.exit(main(args))

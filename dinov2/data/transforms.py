@@ -87,10 +87,35 @@ def make_classification_eval_transform(
     std: Sequence[float] = IMAGENET_DEFAULT_STD,
 ) -> transforms.Compose:
     transforms_list = [
-        transforms.Resize(resize_size, interpolation=interpolation),
+        transforms.Resize((resize_size, resize_size), interpolation=interpolation),
         transforms.CenterCrop(crop_size),
         MaybeToTensor(),
         make_normalize_transform(mean=mean, std=std),
+    ]
+    return transforms.Compose(transforms_list)
+
+def make_segmentation_transform(
+    *,
+    resize_size: int = 448,
+    interpolation=transforms.InterpolationMode.BICUBIC,
+    mean: Sequence[float] = IMAGENET_DEFAULT_MEAN,
+    std: Sequence[float] = IMAGENET_DEFAULT_STD,
+) -> transforms.Compose:
+    transforms_list = [
+        transforms.Resize((resize_size, resize_size), interpolation=interpolation),
+        MaybeToTensor(),
+        make_normalize_transform(mean=mean, std=std),
+    ]
+    return transforms.Compose(transforms_list)
+
+def make_segmentation_target_transform(
+    *,
+    resize_size: int = 448,
+    interpolation=transforms.InterpolationMode.BICUBIC
+) -> transforms.Compose:
+    transforms_list = [
+        transforms.Resize((resize_size, resize_size), interpolation=interpolation),
+        MaybeToTensor(),
     ]
     return transforms.Compose(transforms_list)
 

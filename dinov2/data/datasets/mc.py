@@ -48,9 +48,12 @@ class MC(VisionDataset):
         self._split = split
 
         self.images = os.listdir(self._image_folder_path)
-        
+        self.class_id_mapping = {"background": 0, "left_lung": 1, "right_lung": 2}
+        self.class_names = list(self.class_id_mapping.keys())
         self.masks = {"left_lung": os.listdir(self._masks_path + os.sep + "leftMask"),
-                      "right_right": os.listdir(self._masks_path + os.sep + "rightMask")}
+                      "right_lung": os.listdir(self._masks_path + os.sep + "rightMask")}
+        
+        self._size_check()
 
     @property
     def split(self) -> "MC.Split":
@@ -59,6 +62,12 @@ class MC(VisionDataset):
     def _size_check(self):
         data_in_root = len(os.listdir(self._root))
         print(f"{self.split.length - data_in_root} scans are missing from {self._split.value.upper()} set")
+
+    def get_length(self) -> int:
+        return self.__len__()
+
+    def get_num_classes(self) -> int:
+        return len(self.class_names)
 
     def get_image_data(self, index: int) -> np.ndarray:
         image_path = self._image_folder_path + os.sep + self.images[index]
@@ -69,28 +78,32 @@ class MC(VisionDataset):
 
         return image
     
-    def get_target(self, index: int) -> dict:
+    def get_target(self, index: int) -> np.ndarray:
         left_mask_path = self._masks_path + os.sep + "leftMask" + os.sep + self.masks["left_lung"][index]
-        right_mask_path = self._masks_path + os.sep + "leftMask" + os.sep + self.masks["right_right"][index]
+        right_mask_path = self._masks_path + os.sep + "rightMask" + os.sep + self.masks["right_lung"][index]
 
-        left_mask = skimage.io.imread(left_mask_path).astype(np.uint8)
-        right_mask = skimage.io.imread(right_mask_path).astype(np.uint8)
+        left_mask = skimage.io.imread(left_mask_path)
+        right_mask = skimage.io.imread(right_mask_path)
 
-        masks = {"left_lung": left_mask,
-                "right_lung": right_mask}
-        return masks
+        left_mask[left_mask==1] = self.class_id_mapping["left_lung"]
+        right_mask[right_mask==1] = self.class_id_mapping["right_lung"]    
 
-    def get_targets(self) -> dict:
-        return self.masks 
+        target = left_mask + right_mask
+        target = torch.from_numpy(target).long().unsqueeze(0)
+
+        return target
     
     def __len__(self) -> int:
         return len(self.images)
 
     def __getitem__(self, index: int):
         image = self.get_image_data(index)
-        masks = self.get_target(index)
+        target = self.get_target(index)
 
         if self.transforms is not None:
-            image, masks = self.transforms(image, masks)
+            image, target = self.transforms(image, target)
 
-        return image, masks
+        # Remove channel dim in target
+        target = target.squeeze()
+
+        return image, target

@@ -179,7 +179,7 @@ def make_data_loader(
     sampler_type: Optional[SamplerType] = SamplerType.INFINITE,
     sampler_size: int = -1,
     sampler_advance: int = 0,
-    drop_last: bool = True,
+    drop_last: bool = False,
     persistent_workers: bool = False,
     collate_fn: Optional[Callable[[List[T]], Any]] = None,
 ):

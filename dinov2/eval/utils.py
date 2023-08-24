@@ -88,8 +88,6 @@ def evaluate(
     metric_logger.synchronize_between_processes()
     logger.info(f"Averaged stats: {metric_logger}")
 
-    # TODO: change
-    # stats = {k: metric.compute() for k, metric in metrics.items()} 
     stats = apply_method_to_nested_values(metrics, "compute", nested_types=(MetricCollection, dict))
     metric_logger_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
     return metric_logger_stats, stats

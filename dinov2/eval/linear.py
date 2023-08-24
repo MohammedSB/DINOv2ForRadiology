@@ -12,6 +12,7 @@ import logging
 import os
 import sys
 from typing import List, Optional
+import math
 
 import numpy as np
 import torch
@@ -30,7 +31,6 @@ from dinov2.logging import MetricLogger
 
 
 logger = logging.getLogger("dinov2")
-
 
 def get_args_parser(
     description: Optional[str] = None,
@@ -140,7 +140,7 @@ def get_args_parser(
         epochs=10,
         batch_size=128,
         num_workers=8,
-        epoch_length=1250,
+        epoch_length=None,
         save_checkpoint_frequency=20,
         eval_period_iterations=1250,
         learning_rates=[1e-6, 2e-6, 5e-6, 1e-5, 2e-5, 5e-5, 1e-4, 2e-4, 5e-4, 1e-3, 2e-3, 5e-3],
@@ -350,7 +350,6 @@ def eval_linear(
     logger.info("Starting training from iteration {}".format(start_iter))
     metric_logger = MetricLogger(delimiter="  ")
     header = "Training"
-
     for data, labels in metric_logger.log_every(
         train_data_loader,
         10,
@@ -444,7 +443,7 @@ def make_eval_data_loader(test_dataset_str, batch_size, num_workers, metric_type
         dataset=test_dataset,
         batch_size=batch_size,
         num_workers=num_workers,
-        sampler_type=SamplerType.DISTRIBUTED,
+        sampler_type=None,
         drop_last=False,
         shuffle=False,
         persistent_workers=False,
@@ -524,8 +523,11 @@ def run_eval_linear(
         transform=train_transform,
     )
     training_num_classes = train_dataset.get_num_classes()
-    sampler_type = SamplerType.SHARDED_INFINITE
-    # sampler_type = SamplerType.INFINITE
+    is_multilabel = train_dataset.MULTILABEL
+    if epoch_length == None:
+        epoch_length = math.ceil(train_dataset.get_length() / batch_size)
+        eval_period_iterations = epoch_length * 5
+    sampler_type = SamplerType.INFINITE
 
     n_last_blocks_list = [1, 4]
     n_last_blocks = max(n_last_blocks_list)
@@ -575,9 +577,6 @@ def run_eval_linear(
         else:
             class_mapping = None
         test_class_mappings.append(class_mapping)
-
-    # TODO: change
-    is_multilabel = True
 
     metrics_file_path = os.path.join(output_dir, "results_eval_linear.json")
     val_results_dict, feature_model, linear_classifiers, iteration = eval_linear(
