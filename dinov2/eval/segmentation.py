@@ -188,6 +188,8 @@ class TransformerEncoder(torch.nn.Module):
 
 class LinearDecoder(torch.nn.Module):
     """Linear decoder head"""
+    DECODER_TYPE = "linear"
+
     def __init__(self, in_channels, tokenW=32, tokenH=32, num_classes=3):
         super(LinearDecoder, self).__init__()
 
@@ -209,6 +211,7 @@ class AllDecoders(nn.Module):
         super().__init__()
         self.decoders_dict = nn.ModuleDict()
         self.decoders_dict.update(decoders_dict)
+        self.decoder_type = list(decoders_dict.values())[0].DECODER_TYPE
 
     def forward(self, inputs):
         return {k: v.forward(inputs) for k, v in self.decoders_dict.items()}
@@ -224,9 +227,14 @@ class LinearPostprocessor(nn.Module):
         self.register_buffer("class_mapping", None if class_mapping is None else torch.LongTensor(class_mapping))
 
     def forward(self, samples, targets):
-        preds = self.decoder(samples)
+        logits = self.decoder(samples)
+        logits = torch.nn.functional.interpolate(logits, size=targets[2], mode="bilinear", align_corners=False)
+        print("samples shape", samples.shape)
+        print("logits shape", logits.shape)
+        
+        preds = logits.argmax(dim=1)
         return {
-            "preds": preds[:, self.class_mapping] if self.class_mapping is not None else preds,
+            "preds": preds,
             "target": targets,
         }
 
@@ -236,17 +244,15 @@ def setup_decoders(embed_dim, learning_rates, num_classes=14):
     """
     decoders_dict = nn.ModuleDict()
     optim_param_groups = []
-    for avgpool in [False, True]:
-        for _lr in learning_rates:
-            lr = _lr
-            decoder = LinearDecoder(
-                embed_dim, num_classes=num_classes
-            )
-            decoder = decoder.cuda()
-            decoders_dict[
-                f"segmentor_avgpool_{avgpool}_lr_{lr:.10f}".replace(".", "_")
-            ] = decoder
-            optim_param_groups.append({"params": decoder.parameters(), "lr": lr})
+    for lr in learning_rates:
+        decoder = LinearDecoder(
+            embed_dim, num_classes=num_classes
+        )
+        decoder = decoder.cuda()
+        decoders_dict[
+            f"segmentor_lr_{lr:.10f}".replace(".", "_")
+        ] = decoder
+        optim_param_groups.append({"params": decoder.parameters(), "lr": lr})
 
     decoders = AllDecoders(decoders_dict)
     if distributed.is_enabled():
@@ -273,8 +279,8 @@ def evaluate_segmentors(
     num_classes = len(class_mapping) if class_mapping is not None else training_num_classes
     labels = list(data_loader.dataset.class_names)
     metric = build_metric(metric_type, num_classes=num_classes, labels=labels)
-    postprocessors = {k: LinearPostprocessor(v, class_mapping) for k, v in decoders.classifiers_dict.items()}
-    metrics = {k: metric.clone() for k in decoders.classifiers_dict}
+    postprocessors = {k: LinearPostprocessor(v, class_mapping) for k, v in decoders.decoders_dict.items()}
+    metrics = {k: metric.clone() for k in decoders.decoders_dict}
 
     _, results_dict_temp = evaluate(
         feature_model,
@@ -351,16 +357,19 @@ def eval_decoders(
         max_iter,
         start_iter,
     ):
+        
         data = data.cuda(non_blocking=True)
         labels = labels.cuda(non_blocking=True)
 
         features = feature_model(data)
         outputs = decoders(features)
         
-        # Upsample (interpolate) output/logit map if not same size.
-        h_hat, h = outputs.shape[2], labels.shape[1] 
-        if h_hat != h:
-            outputs = torch.nn.functional.interpolate(outputs, size=h, mode="bilinear", align_corners=False)
+        # Upsample (interpolate) output/logit map if not same size. 
+        if decoders.module.decoder_type == "linear":
+            outputs = {
+                m: torch.nn.functional.interpolate(output, size=labels.shape[1], mode="bilinear", align_corners=False)
+                for m, output in outputs.items()
+                }
 
         # important to set ignore_index to 0 to ignore predicting the background.
         losses = {f"loss_{k}": nn.CrossEntropyLoss(ignore_index=0)(v, labels) for k, v in outputs.items()}
@@ -523,8 +532,8 @@ def run_eval_segmentation(
         learning_rates,
         training_num_classes,
     )
-
     feature_model = TransformerEncoder(model)
+    feature_model = feature_model.cuda()
 
     optimizer = torch.optim.Adam(optim_param_groups)
     max_iter = epochs * epoch_length

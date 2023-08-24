@@ -82,7 +82,6 @@ def evaluate(
 
         for k, metric in metrics.items():
             metric_inputs = postprocessors[k](outputs, targets)
-            metric_inputs['preds'] = torch.sigmoid(metric_inputs['preds'])  # Apply sigmoid
             metric.update(**metric_inputs)
 
     metric_logger.synchronize_between_processes()

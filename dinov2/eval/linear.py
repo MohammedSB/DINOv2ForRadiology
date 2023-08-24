@@ -222,7 +222,7 @@ class LinearPostprocessor(nn.Module):
         self.register_buffer("class_mapping", None if class_mapping is None else torch.LongTensor(class_mapping))
 
     def forward(self, samples, targets):
-        preds = self.linear_classifier(samples)
+        preds = torch.sigmoid(self.linear_classifier(samples))
         return {
             "preds": preds[:, self.class_mapping] if self.class_mapping is not None else preds,
             "target": targets,
