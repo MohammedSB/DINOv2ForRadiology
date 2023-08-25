@@ -16,8 +16,8 @@
 PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/segmentation.py \
     --gpus 1 \
     --nodes 1 \
-    --batch-size 1 \
-    --epochs 10 \
+    --batch-size 2 \
+    --epochs 1 \
     --val-metric-type segmentation_metrics \
     --test-metric-types segmentation_metrics \
     --config-file dinov2/configs/eval/vits14_pretrain.yaml \

@@ -146,7 +146,7 @@ def get_args_parser(
         test_dataset_strs=None,
         epochs=10,
         batch_size=128,
-        num_workers=8,
+        num_workers=1,
         epoch_length=None,
         save_checkpoint_frequency=20,
         eval_period_iterations=1250,
@@ -228,9 +228,7 @@ class LinearPostprocessor(nn.Module):
 
     def forward(self, samples, targets):
         logits = self.decoder(samples)
-        logits = torch.nn.functional.interpolate(logits, size=targets[2], mode="bilinear", align_corners=False)
-        print("samples shape", samples.shape)
-        print("logits shape", logits.shape)
+        logits = torch.nn.functional.interpolate(logits, size=targets.shape[2], mode="bilinear", align_corners=False)
         
         preds = logits.argmax(dim=1)
         return {
@@ -433,6 +431,7 @@ def make_eval_data_loader(test_dataset_str, batch_size, num_workers, metric_type
     test_dataset = make_dataset(
         dataset_str=test_dataset_str,
         transform=make_segmentation_transform(),
+        target_transform=make_segmentation_target_transform()
     )
     test_data_loader = make_data_loader(
         dataset=test_dataset,
@@ -548,7 +547,7 @@ def run_eval_segmentation(
         seed=seed,
         sampler_type=sampler_type,
         sampler_advance=start_iter,
-        drop_last=True,
+        drop_last=False,
         persistent_workers=True,
     )
     val_data_loader = make_eval_data_loader(val_dataset_str, batch_size, num_workers, val_metric_type)
