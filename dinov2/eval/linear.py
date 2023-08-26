@@ -561,7 +561,7 @@ def run_eval_linear(
     )
     val_data_loader = make_eval_data_loader(val_dataset_str, batch_size, num_workers, val_metric_type)
 
-    checkpoint_period = save_checkpoint_frequency * epoch_length
+    checkpoint_period = save_checkpoint_frequency * (epoch_length * epochs)
 
     if val_class_mapping_fpath is not None:
         logger.info(f"Using class mapping from {val_class_mapping_fpath}")

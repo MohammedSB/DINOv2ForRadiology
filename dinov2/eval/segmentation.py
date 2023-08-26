@@ -523,7 +523,6 @@ def run_eval_segmentation(
     training_num_classes = train_dataset.get_num_classes()
     if epoch_length == None:
         epoch_length = math.ceil(train_dataset.get_length() / batch_size)
-        eval_period_iterations = epoch_length * 5
     sampler_type = SamplerType.INFINITE
 
     embed_dim = model.embed_dim
@@ -554,7 +553,7 @@ def run_eval_segmentation(
     )
     val_data_loader = make_eval_data_loader(val_dataset_str, batch_size, num_workers, val_metric_type)
 
-    checkpoint_period = save_checkpoint_frequency * epoch_length
+    checkpoint_period = save_checkpoint_frequency * (epoch_length * epochs)
 
     if val_class_mapping_fpath is not None:
         logger.info(f"Using class mapping from {val_class_mapping_fpath}")
