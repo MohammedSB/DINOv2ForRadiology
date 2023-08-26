@@ -177,13 +177,16 @@ def _pad_and_collate(batch):
     return torch.utils.data.default_collate(padded_batch)
 
 class TransformerEncoder(torch.nn.Module):
-    def __init__(self, encoder) -> None:
+    def __init__(self, encoder, autocast_ctx) -> None:
         super(TransformerEncoder, self).__init__()
         self.encoder = encoder
+        self.encoder.eval()
+        self.autocast_ctx = autocast_ctx
     
     def forward(self, x):
-        with torch.no_grad(): 
-            features = self.encoder.forward_features(x)['x_norm_patchtokens']
+        with torch.no_grad():
+            with self.autocast_ctx():
+                features = self.encoder.forward_features(x)['x_norm_patchtokens']
         return features
 
 class LinearDecoder(torch.nn.Module):
@@ -191,7 +194,7 @@ class LinearDecoder(torch.nn.Module):
     DECODER_TYPE = "linear"
 
     def __init__(self, in_channels, tokenW=32, tokenH=32, num_classes=3):
-        super(LinearDecoder, self).__init__()
+        super().__init__()
 
         self.in_channels = in_channels
         self.width = tokenW
@@ -361,7 +364,7 @@ def eval_decoders(
 
         features = feature_model(data)
         outputs = decoders(features)
-        
+
         # Upsample (interpolate) output/logit map if linear decoder. 
         if decoders.module.decoder_type == "linear":
             outputs = {
@@ -524,14 +527,14 @@ def run_eval_segmentation(
     sampler_type = SamplerType.INFINITE
 
     embed_dim = model.embed_dim
+    autocast_ctx = partial(torch.cuda.amp.autocast, enabled=True, dtype=autocast_dtype)
+    feature_model = TransformerEncoder(model, autocast_ctx=autocast_ctx)
 
     decoders, optim_param_groups = setup_decoders(
         embed_dim,
         learning_rates,
         training_num_classes,
     )
-    feature_model = TransformerEncoder(model)
-    feature_model = feature_model.cuda()
 
     optimizer = torch.optim.SGD(optim_param_groups, momentum=0.9, weight_decay=0)
     max_iter = epochs * epoch_length

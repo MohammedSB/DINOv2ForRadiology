@@ -343,7 +343,7 @@ def eval_linear(
     is_multilabel=True,
 ):
     checkpointer = Checkpointer(linear_classifiers, output_dir, optimizer=optimizer, scheduler=scheduler)
-    start_iter = checkpointer.resume_or_load(classifier_fpath or "", resume=resume).get("iteration", -1) + 1
+    start_iter = checkpointer.resume_or_load(classifier_fpath or "", resume=resume).get("iteration", 0) + 1
 
     periodic_checkpointer = PeriodicCheckpointer(checkpointer, checkpoint_period, max_iter=max_iter)
     iteration = start_iter
@@ -405,7 +405,7 @@ def eval_linear(
                 torch.cuda.synchronize()
         periodic_checkpointer.step(iteration)
 
-        if eval_period > 0 and (iteration + 1) % eval_period == 0 and iteration != max_iter - 1:
+        if eval_period > 0 and iteration % eval_period == 0 and iteration != max_iter:
             _ = evaluate_linear_classifiers(
                 feature_model=feature_model,
                 linear_classifiers=remove_ddp_wrapper(linear_classifiers),
@@ -547,7 +547,7 @@ def run_eval_linear(
     max_iter = epochs * epoch_length
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iter, eta_min=0)
     checkpointer = Checkpointer(linear_classifiers, output_dir, optimizer=optimizer, scheduler=scheduler)
-    start_iter = checkpointer.resume_or_load(classifier_fpath or "", resume=resume).get("iteration", -1) + 1
+    start_iter = checkpointer.resume_or_load(classifier_fpath or "", resume=resume).get("iteration", 0) + 1
     train_data_loader = make_data_loader(
         dataset=train_dataset,
         batch_size=batch_size,
