@@ -146,7 +146,7 @@ def get_args_parser(
         test_dataset_strs=None,
         epochs=10,
         batch_size=128,
-        num_workers=1,
+        num_workers=0,
         epoch_length=None,
         save_checkpoint_frequency=20,
         eval_period_iterations=1250,
@@ -550,7 +550,7 @@ def run_eval_segmentation(
         sampler_type=sampler_type,
         sampler_advance=start_iter,
         drop_last=False,
-        persistent_workers=True,
+        persistent_workers=False,
     )
     val_data_loader = make_eval_data_loader(val_dataset_str, batch_size, num_workers, val_metric_type)
 
