@@ -43,15 +43,13 @@ class MC(VisionDataset):
         super().__init__(root, transforms, transform, target_transform)
         
         self._root = root  
-        self._image_folder_path = self._root + os.sep + "CXR_png"
-        self._masks_path = self._root + os.sep + "ManualMask"
+        self._data_directory = ("/").join(root.split("/")[:-1]) # This defines the root for the entire data directory  
+        self._masks_path = self._data_directory + os.sep + "ManualMask"
         self._split = split
 
-        self.images = os.listdir(self._image_folder_path)
+        self.images = os.listdir(self._root)
         self.class_id_mapping = {"background": 0, "left_lung": 1, "right_lung": 2}
         self.class_names = list(self.class_id_mapping.keys())
-        self.masks = {"left_lung": os.listdir(self._masks_path + os.sep + "leftMask"),
-                      "right_lung": os.listdir(self._masks_path + os.sep + "rightMask")}
         
         self._size_check()
 
@@ -70,7 +68,7 @@ class MC(VisionDataset):
         return len(self.class_names)
 
     def get_image_data(self, index: int) -> np.ndarray:
-        image_path = self._image_folder_path + os.sep + self.images[index]
+        image_path = self._root + os.sep + self.images[index]
         
         image = skimage.io.imread(image_path)
         image = np.stack((image,)*3, axis=0)
@@ -79,8 +77,11 @@ class MC(VisionDataset):
         return image
     
     def get_target(self, index: int) -> np.ndarray:
-        left_mask_path = self._masks_path + os.sep + "leftMask" + os.sep + self.masks["left_lung"][index]
-        right_mask_path = self._masks_path + os.sep + "rightMask" + os.sep + self.masks["right_lung"][index]
+
+        img_name = self.images[index]
+
+        left_mask_path = self._masks_path + os.sep + "leftMask" + os.sep + img_name
+        right_mask_path = self._masks_path + os.sep + "rightMask" + os.sep + img_name
 
         left_mask = skimage.io.imread(left_mask_path).astype(np.int_)
         right_mask = skimage.io.imread(right_mask_path).astype(np.int_)

@@ -46,11 +46,11 @@ class NIHChestXray(VisionDataset):
         
         # Define paths for the data
         self._root = root 
-        self.data_directory = ("/").join(root.split("/")[:-1]) # This defines the root for the entire data directory  
-        self.curr_imgs = os.listdir(root)
+        self._data_directory = ("/").join(root.split("/")[:-1]) # This defines the root for the entire data directory  
+        self.curr_imgs = os.listdir(root) #TODO: Remove
 
         # Set the labels dataframe
-        labels_path = self.data_directory + os.sep + "labels"
+        labels_path = self._data_directory + os.sep + "labels"
         self.labels = pd.read_csv(labels_path + ".csv")
 
         self._split = split
@@ -80,9 +80,9 @@ class NIHChestXray(VisionDataset):
     def _extract_subset(self):
         # Define either train or testset
         if self._split == _Split.TRAIN or self._split == _Split.VAL:
-            subset = pd.read_csv(self.data_directory + os.sep + "train_val_list.txt", names=["Image Index"])
+            subset = pd.read_csv(self._data_directory + os.sep + "train_val_list.txt", names=["Image Index"])
         elif self._split == _Split.TEST:
-            subset = pd.read_csv(self.data_directory + os.sep + "test_list.txt", names=["Image Index"])
+            subset = pd.read_csv(self._data_directory + os.sep + "test_list.txt", names=["Image Index"])
         else:
             raise ValueError(f'Unsupported split "{self.split}"')
 

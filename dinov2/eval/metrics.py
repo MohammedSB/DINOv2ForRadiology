@@ -20,7 +20,6 @@ from torchmetrics.utilities.data import dim_zero_cat, select_topk
 
 logger = logging.getLogger("dinov2")
 
-
 class MetricType(Enum):
     MEAN_ACCURACY = "mean_accuracy"
     MEAN_PER_CLASS_ACCURACY = "mean_per_class_accuracy"
