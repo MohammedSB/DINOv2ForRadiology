@@ -64,7 +64,7 @@ class MetricLogger(object):
             f.write(json.dumps(dict_to_dump) + "\n")
         pass
 
-    def log_every(self, iterable, print_freq, header=None, n_iterations=None, start_iteration=0):
+    def log_every(self, iterable, print_freq, header=None, n_iterations=None, start_iteration=1):
         i = start_iteration
         if not header:
             header = ""
@@ -95,7 +95,7 @@ class MetricLogger(object):
             data_time.update(time.time() - end)
             yield obj
             iter_time.update(time.time() - end)
-            if i % print_freq == 0 or i == n_iterations - 1:
+            if i % print_freq == 1 or i == n_iterations:
                 self.dump_in_output_file(iteration=i, iter_time=iter_time.avg, data_time=data_time.avg)
                 eta_seconds = iter_time.global_avg * (n_iterations - i)
                 eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
@@ -124,7 +124,7 @@ class MetricLogger(object):
                     )
             i += 1
             end = time.time()
-            if i >= n_iterations:
+            if i > n_iterations:
                 break
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))

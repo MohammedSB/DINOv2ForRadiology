@@ -82,14 +82,15 @@ class MC(VisionDataset):
         left_mask_path = self._masks_path + os.sep + "leftMask" + os.sep + self.masks["left_lung"][index]
         right_mask_path = self._masks_path + os.sep + "rightMask" + os.sep + self.masks["right_lung"][index]
 
-        left_mask = skimage.io.imread(left_mask_path)
-        right_mask = skimage.io.imread(right_mask_path)
+        left_mask = skimage.io.imread(left_mask_path).astype(np.int_)
+        right_mask = skimage.io.imread(right_mask_path).astype(np.int_)
 
         left_mask[left_mask==1] = self.class_id_mapping["left_lung"]
         right_mask[right_mask==1] = self.class_id_mapping["right_lung"]    
 
         target = left_mask + right_mask
-        target = torch.from_numpy(target).long().unsqueeze(0)
+
+        target = torch.from_numpy(target).unsqueeze(0)
 
         return target
     

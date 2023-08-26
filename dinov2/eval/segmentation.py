@@ -340,7 +340,7 @@ def eval_decoders(
     val_class_mapping=None,
 ):
     checkpointer = Checkpointer(decoders, output_dir, optimizer=optimizer, scheduler=scheduler)
-    start_iter = checkpointer.resume_or_load(segmentor_fpath or "", resume=resume).get("iteration", -1) + 1
+    start_iter = checkpointer.resume_or_load(segmentor_fpath or "", resume=resume).get("iteration", 0) + 1
 
     periodic_checkpointer = PeriodicCheckpointer(checkpointer, checkpoint_period, max_iter=max_iter)
     iteration = start_iter
@@ -362,15 +362,14 @@ def eval_decoders(
         features = feature_model(data)
         outputs = decoders(features)
         
-        # Upsample (interpolate) output/logit map if not same size. 
+        # Upsample (interpolate) output/logit map if linear decoder. 
         if decoders.module.decoder_type == "linear":
             outputs = {
                 m: torch.nn.functional.interpolate(output, size=labels.shape[1], mode="bilinear", align_corners=False)
                 for m, output in outputs.items()
                 }
 
-        # important to set ignore_index to 0 to ignore predicting the background.
-        losses = {f"loss_{k}": nn.CrossEntropyLoss(ignore_index=0)(v, labels) for k, v in outputs.items()}
+        losses = {f"loss_{k}": nn.CrossEntropyLoss()(v, labels) for k, v in outputs.items()}
 
         loss = sum(losses.values())
 
@@ -398,7 +397,7 @@ def eval_decoders(
                 torch.cuda.synchronize()
         periodic_checkpointer.step(iteration)
 
-        if eval_period > 0 and (iteration + 1) % eval_period == 0 and iteration != max_iter - 1:
+        if eval_period > 0 and iteration % eval_period == 0 and iteration != max_iter:
             _ = evaluate_segmentors(
                 feature_model=feature_model,
                 decoders=remove_ddp_wrapper(decoders),
@@ -534,7 +533,7 @@ def run_eval_segmentation(
     feature_model = TransformerEncoder(model)
     feature_model = feature_model.cuda()
 
-    optimizer = torch.optim.Adam(optim_param_groups)
+    optimizer = torch.optim.SGD(optim_param_groups, momentum=0.9, weight_decay=0)
     max_iter = epochs * epoch_length
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iter, eta_min=0)
     checkpointer = Checkpointer(decoders, output_dir, optimizer=optimizer, scheduler=scheduler)
