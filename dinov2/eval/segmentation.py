@@ -150,7 +150,7 @@ def get_args_parser(
         epoch_length=None,
         save_checkpoint_frequency=20,
         eval_period_iterations=1250,
-        learning_rates=[1e-6, 2e-6, 5e-6, 1e-5, 2e-5, 5e-5, 1e-4, 2e-4, 5e-4, 1e-3, 2e-3, 5e-3],
+        learning_rates=[1e-6, 2e-6, 5e-6, 1e-5, 2e-5, 5e-5, 1e-4, 2e-4, 5e-4, 1e-3, 2e-3, 5e-3, 1e-2, 5e-2, 1e-1],
         val_metric_type=MetricType.MULTILABEL_AUROC,
         test_metric_types=None,
         segmentor_fpath=None,
