@@ -92,6 +92,8 @@ class MetricLogger(object):
         log_msg = self.delimiter.join(log_list)
         MB = 1024.0 * 1024.0
         for obj in iterable:
+            if i > n_iterations:
+                break
             data_time.update(time.time() - end)
             yield obj
             iter_time.update(time.time() - end)
@@ -124,8 +126,6 @@ class MetricLogger(object):
                     )
             i += 1
             end = time.time()
-            if i > n_iterations:
-                break
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
         logger.info("{} Total time: {} ({:.6f} s / it)".format(header, total_time_str, total_time / n_iterations))
