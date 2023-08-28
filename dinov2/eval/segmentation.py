@@ -539,7 +539,7 @@ def run_eval_segmentation(
     max_iter = epochs * epoch_length
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iter, eta_min=0)
     checkpointer = Checkpointer(decoders, output_dir, optimizer=optimizer, scheduler=scheduler)
-    start_iter = checkpointer.resume_or_load(segmentor_fpath or "", resume=resume).get("iteration", -1) + 1
+    start_iter = checkpointer.resume_or_load(segmentor_fpath or "", resume=resume).get("iteration", 0) + 1
     train_data_loader = make_data_loader(
         dataset=train_dataset,
         batch_size=batch_size,

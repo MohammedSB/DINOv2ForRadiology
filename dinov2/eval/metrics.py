@@ -13,9 +13,9 @@ import torch
 from torch import Tensor
 from torchmetrics import Metric, MetricCollection
 from torchmetrics.wrappers import ClasswiseWrapper
-from torchmetrics.classification import (MultilabelAUROC, MultilabelF1Score, MultilabelAccuracy, MulticlassF1Score,
+from torchmetrics.classification import (MultilabelAUROC, MultilabelF1Score, MultilabelAccuracy, MulticlassF1Score, 
                                         MulticlassAccuracy, MulticlassAUROC, Accuracy, BinaryF1Score, BinaryAUROC,
-                                        MulticlassJaccardIndex, Dice)
+                                        JaccardIndex, MulticlassJaccardIndex, Dice)
 from torchmetrics.utilities.data import dim_zero_cat, select_topk
 
 logger = logging.getLogger("dinov2")
@@ -66,7 +66,7 @@ def build_metric(metric_type: MetricType, *, num_classes: int, labels = None, ks
             labels=labels
         )
     elif metric_type == MetricType.SEGMENTATION_METRICS:
-        return build_multiclass_segmentation_metrics(
+        return build_segmentation_metrics(
             average_type=metric_type.accuracy_averaging,
             num_labels=num_classes,
         )
@@ -85,7 +85,7 @@ def build_metric(metric_type: MetricType, *, num_classes: int, labels = None, ks
     raise ValueError(f"Unknown metric type {metric_type}")
 
 
-def build_multiclass_segmentation_metrics(average_type: MetricAveraging, num_labels:int):
+def build_segmentation_metrics(average_type: MetricAveraging, num_labels: int = 2):
     metrics: Dict[str, Metric] = {
         "jaccard": MulticlassJaccardIndex(num_classes=num_labels, average=average_type.value, ignore_index=0),
         "dice": Dice(num_classes=num_labels, average=average_type.value, ignore_index=0)
