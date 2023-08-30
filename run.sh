@@ -3,8 +3,8 @@
 # PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/linear.py \
 #     --gpus 1 \
 #     --nodes 1 \
-#     --batch-size 2 \
-#     --epochs 2 \
+#     --batch-size 4 \
+#     --epochs 10 \
 #     --val-metric-type multilabel_auc \
 #     --test-metric-types multilabel_auc \
 #     --config-file dinov2/configs/eval/vits14_pretrain.yaml \

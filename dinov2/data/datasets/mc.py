@@ -17,14 +17,12 @@ _Target = int
 
 class _Split(Enum):
     TRAIN = "train"
-    VAL = "val"
     TEST = "test"
 
     @property
     def length(self) -> int:
         split_lengths = {
             _Split.TRAIN: 92,
-            _Split.VAL: 92,
             _Split.TEST: 46,
         }
         return split_lengths[self]
@@ -59,7 +57,7 @@ class MC(VisionDataset):
 
     def _size_check(self):
         data_in_root = len(os.listdir(self._root))
-        print(f"{self.split.length - data_in_root} scans are missing from {self._split.value.upper()} set")
+        logger.info(f"{self.split.length - data_in_root} scans are missing from {self._split.value.upper()} set")
 
     def get_length(self) -> int:
         return self.__len__()

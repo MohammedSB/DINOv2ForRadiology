@@ -89,9 +89,9 @@ def get_args_parser(
         help="Number of epochs between two named checkpoint saves.",
     )
     parser.add_argument(
-        "--eval-period-iterations",
+        "--eval-period-epochs",
         type=int,
-        help="Number of iterations between two evaluations.",
+        help="Number of epochs between two evaluations.",
     )
     parser.add_argument(
         "--learning-rates",
@@ -141,8 +141,8 @@ def get_args_parser(
         batch_size=128,
         num_workers=8,
         epoch_length=None,
-        save_checkpoint_frequency=20,
-        eval_period_iterations=1250,
+        save_checkpoint_frequency=5,
+        eval_period_epochs=5,
         learning_rates=[1e-6, 2e-6, 5e-6, 1e-5, 2e-5, 5e-5, 1e-4, 2e-4, 5e-4, 1e-3, 2e-3, 5e-3, 1e-2, 5e-2, 1e-1],
         val_metric_type=MetricType.MULTILABEL_AUROC,
         test_metric_types=None,
@@ -332,7 +332,7 @@ def eval_linear(
     scheduler,
     output_dir,
     max_iter,
-    checkpoint_period,  # In number of iter, creates a new file every period
+    checkpoint_period,  # In number of epochs, creates a new file every period
     running_checkpoint_period,  # Period to update main checkpoint file
     eval_period,
     metric_type,
@@ -496,7 +496,7 @@ def run_eval_linear(
     epoch_length,
     num_workers,
     save_checkpoint_frequency,
-    eval_period_iterations,
+    eval_period_epochs,
     learning_rates,
     autocast_dtype,
     test_dataset_strs=None,
@@ -526,7 +526,9 @@ def run_eval_linear(
     is_multilabel = train_dataset.MULTILABEL
     if epoch_length == None:
         epoch_length = math.ceil(train_dataset.get_length() / batch_size)
-        eval_period_iterations = epoch_length * 5
+    eval_period_epochs *= epoch_length
+    checkpoint_period = save_checkpoint_frequency * epoch_length
+    
     sampler_type = SamplerType.INFINITE
 
     n_last_blocks_list = [1, 4]
@@ -561,7 +563,6 @@ def run_eval_linear(
     )
     val_data_loader = make_eval_data_loader(val_dataset_str, batch_size, num_workers, val_metric_type)
 
-    checkpoint_period = save_checkpoint_frequency * (epoch_length * epochs)
 
     if val_class_mapping_fpath is not None:
         logger.info(f"Using class mapping from {val_class_mapping_fpath}")
@@ -591,7 +592,7 @@ def run_eval_linear(
         max_iter=max_iter,
         checkpoint_period=checkpoint_period,
         running_checkpoint_period=epoch_length,
-        eval_period=eval_period_iterations,
+        eval_period=eval_period_epochs,
         metric_type=val_metric_type,
         training_num_classes=training_num_classes,
         resume=resume,
@@ -634,7 +635,7 @@ def main(args):
         epoch_length=args.epoch_length,
         num_workers=args.num_workers,
         save_checkpoint_frequency=args.save_checkpoint_frequency,
-        eval_period_iterations=args.eval_period_iterations,
+        eval_period_epochs=args.eval_period_epochs,
         learning_rates=args.learning_rates,
         autocast_dtype=autocast_dtype,
         resume=not args.no_resume,
