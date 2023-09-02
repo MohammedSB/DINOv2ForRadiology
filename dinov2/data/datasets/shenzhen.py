@@ -13,10 +13,6 @@ import skimage
 import pandas as pd
 import numpy as np
 
-
-logger = logging.getLogger("dinov2")
-_Target = int
-
 class _Split(Enum):
     TRAIN = "train"
     VAL = "val"
@@ -25,38 +21,39 @@ class _Split(Enum):
     @property
     def length(self) -> int:
         split_lengths = {
-            _Split.TRAIN: 69,
-            _Split.VAL: 23,
-            _Split.TEST: 46,
+            _Split.TRAIN: 361,
+            _Split.VAL: 91,
+            _Split.TEST: 114,
         }
         return split_lengths[self]
 
-class MC(VisionDataset):
+class Shenzhen(VisionDataset):
     Split = _Split
 
     def __init__(
         self,
-        split: "MC.Split",
+        *,
+        split: "Shenzhen.Split",
         root: str,
         transforms: Optional[Callable] = None,
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
     ) -> None:
         super().__init__(root, transforms, transform, target_transform)
-        
-        self._root = root  
-        self._masks_path = self._root + os.sep + "ManualMask"
+
+        self._root = root
+        self._masks_path = self._root + os.sep + "masks"
         self._split = split
 
-        self.class_id_mapping = {"background": 0, "left_lung": 1, "right_lung": 2}
+        self.class_id_mapping = {"background": 0, "lung": 1}
         self.class_names = list(self.class_id_mapping.keys())
-        
+
         self._define_split_dir() 
         self._check_size()
         self.images = os.listdir(self._split_dir)
 
     @property
-    def split(self) -> "MC.Split":
+    def split(self) -> "Shenzhen.Split":
         return self._split
     
     def _define_split_dir(self):
@@ -66,7 +63,7 @@ class MC(VisionDataset):
         
     def _check_size(self):
         num_of_images = len(os.listdir(self._split_dir))
-        logger.info(f"{self.split.length - num_of_images} scans are missing from {self._split.value.upper()} set")
+        print(f"{self.split.length - num_of_images} scans are missing from {self._split.value.upper()} set")
 
     def get_length(self) -> int:
         return self.__len__()
@@ -85,20 +82,13 @@ class MC(VisionDataset):
     
     def get_target(self, index: int) -> np.ndarray:
 
-        img_name = self.images[index]
+        mask_path = self.images[index].split(".")[0] + "_mask.png"
+        mask_path = self._masks_path + os.sep + mask_path
+        mask = skimage.io.imread(mask_path).astype(np.int_)
 
-        left_mask_path = self._masks_path + os.sep + "leftMask" + os.sep + img_name
-        right_mask_path = self._masks_path + os.sep + "rightMask" + os.sep + img_name
+        mask[mask==255] = self.class_id_mapping["lung"]
 
-        left_mask = skimage.io.imread(left_mask_path).astype(np.int_)
-        right_mask = skimage.io.imread(right_mask_path).astype(np.int_)
-
-        left_mask[left_mask==1] = self.class_id_mapping["left_lung"]
-        right_mask[right_mask==1] = self.class_id_mapping["right_lung"]    
-
-        target = left_mask + right_mask
-
-        target = torch.from_numpy(target).unsqueeze(0)
+        target = torch.from_numpy(mask).unsqueeze(0)
 
         return target
     
@@ -116,17 +106,23 @@ class MC(VisionDataset):
         target = target.squeeze()
 
         return image, target
-    
-def make_splits(data_dir="/mnt/d/data/MC"):
+
+def make_splits(data_dir="/mnt/d/data/Shenzhen"):
     image_path = data_dir + os.sep + "CXR_png"
+    mask_path = data_dir + os.sep + "masks"
+    
+    image_names = ["_".join(image_name.split(".")[:-1]) for image_name in os.listdir(image_path)] 
+    mask_names = ["_".join(mask_name.split("_")[:-1]) for mask_name in os.listdir(mask_path)]
 
-    # Define the indices for val and test
-    test_list = [i for i in range(0, 138, math.ceil(138/46))]
-    val_list = [i for i in range(0, 92, math.ceil(92/23))]
-    entire_data = pd.DataFrame(os.listdir(image_path))
+    # all images with masks
+    images = pd.DataFrame([image+".png" for image in image_names if image in mask_names])
 
-    test_set = entire_data.iloc[test_list]
-    train_val_set = entire_data.drop(test_list).reset_index(drop=True)
+    # define the indices for val and test
+    test_list = [i for i in range(0, 566, math.ceil(566/114))]
+    val_list = [i for i in range(0, 452, math.ceil(452/91))]
+
+    test_set = images.iloc[test_list]
+    train_val_set = images.drop(test_list).reset_index(drop=True)
 
     val_set = train_val_set.iloc[val_list]
     train_set = train_val_set.drop(val_list)
@@ -155,5 +151,3 @@ def make_splits(data_dir="/mnt/d/data/MC"):
         source = image_path + os.sep + image
         dest = test_dir + os.sep + image
         shutil.move(source, dest)
-
-    os.rmdir(image_path)

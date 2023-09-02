@@ -136,9 +136,9 @@ def get_args_parser(
         help="Path to a file containing a mapping to adjust classifier outputs",
     )
     parser.add_argument(
-        "--decoder",
+        "--decoder-type",
         type=str,
-        help="The type of decoder [linear]",
+        help="The type of decoder to use [linear]",
     )
     parser.set_defaults(
         train_dataset_str="ImageNet:split=TRAIN",
@@ -156,7 +156,7 @@ def get_args_parser(
         segmentor_fpath=None,
         val_class_mapping_fpath=None,
         test_class_mapping_fpaths=[None],
-        decoder=["linear"]
+        decoder_type="linear"
     )
     return parser
 
@@ -239,16 +239,17 @@ class LinearPostprocessor(nn.Module):
             "target": targets,
         }
 
-def setup_decoders(embed_dim, learning_rates, num_classes=14):
+def setup_decoders(embed_dim, learning_rates, num_classes=14, decoder_type="linear"):
     """
     Sets up the multiple segmentors with different hyperparameters to test out the most optimal one 
     """
     decoders_dict = nn.ModuleDict()
     optim_param_groups = []
     for lr in learning_rates:
-        decoder = LinearDecoder(
-            embed_dim, num_classes=num_classes
-        )
+        if decoder_type == "linear":
+            decoder = LinearDecoder(
+                embed_dim, num_classes=num_classes
+            )
         decoder = decoder.cuda()
         decoders_dict[
             f"segmentor_lr_{lr:.10f}".replace(".", "_")
@@ -484,6 +485,7 @@ def test_on_datasets(
 
 def run_eval_segmentation(
     model,
+    decoder_type,
     output_dir,
     train_dataset_str,
     val_dataset_str,
@@ -536,6 +538,7 @@ def run_eval_segmentation(
         embed_dim,
         learning_rates,
         training_num_classes,
+        decoder_type
     )
 
     optimizer = torch.optim.SGD(optim_param_groups, momentum=0.9, weight_decay=0)
@@ -619,6 +622,7 @@ def main(args):
     model, autocast_dtype = setup_and_build_model(args)
     run_eval_segmentation(
         model=model,
+        decoder_type=args.decoder_type,
         output_dir=args.output_dir,
         train_dataset_str=args.train_dataset_str,
         val_dataset_str=args.val_dataset_str,

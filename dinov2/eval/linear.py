@@ -58,10 +58,9 @@ def get_args_parser(
     )
     parser.add_argument(
         "--test-dataset",
-        dest="test_dataset_strs",
+        dest="test_dataset_str",
         type=str,
-        nargs="+",
-        help="Test datasets, none to reuse the validation dataset",
+        help="Test dataset",
     )
     parser.add_argument(
         "--epochs",
@@ -134,9 +133,9 @@ def get_args_parser(
         help="Path to a file containing a mapping to adjust classifier outputs",
     )
     parser.set_defaults(
-        train_dataset_str="ImageNet:split=TRAIN",
-        val_dataset_str="ImageNet:split=VAL",
-        test_dataset_strs=None,
+        train_dataset_str="NIHChestXray:split=TRAIN",
+        val_dataset_str=None,
+        test_dataset_str="NIHChestXray:split=TEST",
         epochs=10,
         batch_size=128,
         num_workers=8,
@@ -491,6 +490,7 @@ def run_eval_linear(
     output_dir,
     train_dataset_str,
     val_dataset_str,
+    test_dataset_str,
     batch_size,
     epochs,
     epoch_length,
@@ -499,7 +499,6 @@ def run_eval_linear(
     eval_period_epochs,
     learning_rates,
     autocast_dtype,
-    test_dataset_strs=None,
     resume=True,
     classifier_fpath=None,
     val_class_mapping_fpath=None,
@@ -629,7 +628,7 @@ def main(args):
         output_dir=args.output_dir,
         train_dataset_str=args.train_dataset_str,
         val_dataset_str=args.val_dataset_str,
-        test_dataset_strs=args.test_dataset_strs,
+        test_dataset_str=args.test_dataset_str,
         batch_size=args.batch_size,
         epochs=args.epochs,
         epoch_length=args.epoch_length,
