@@ -23,11 +23,14 @@ from fvcore.common.checkpoint import Checkpointer, PeriodicCheckpointer
 from dinov2.data import SamplerType, make_data_loader, make_dataset
 from dinov2.data.transforms import (make_classification_eval_transform, make_classification_train_transform,
                                     make_segmentation_transform, make_segmentation_target_transform)
+from dinov2.data.datasets.metadata import NUM_OF_CLASSES
 import dinov2.distributed as distributed
 from dinov2.eval.metrics import MetricType, build_metric
 from dinov2.eval.setup import get_args_parser as get_setup_args_parser
 from dinov2.eval.setup import setup_and_build_model
-from dinov2.eval.utils import ModelWithIntermediateLayers, evaluate, apply_method_to_nested_values
+from dinov2.eval.utils import ModelWithIntermediateLayers, evaluate, apply_method_to_nested_values, make_datasets, make_data_loaders
+from dinov2.eval.segmentation.utils import (setup_decoders, extract_hyperparameters_from_segmentor,
+                                                         LinearPostprocessor, TransformerEncoder)
 from dinov2.logging import MetricLogger
 
 
@@ -60,9 +63,8 @@ def get_args_parser(
     )
     parser.add_argument(
         "--test-dataset",
-        dest="test_dataset_strs",
+        dest="test_dataset_str",
         type=str,
-        nargs="+",
         help="Test datasets, none to reuse the validation dataset",
     )
     parser.add_argument(
@@ -141,9 +143,9 @@ def get_args_parser(
         help="The type of decoder to use [linear]",
     )
     parser.set_defaults(
-        train_dataset_str="ImageNet:split=TRAIN",
-        val_dataset_str="ImageNet:split=VAL",
-        test_dataset_strs=None,
+        train_dataset_str="MC:split=TRAIN",
+        test_dataset_str="MC:split=TEST",
+        val_dataset_str=None,
         epochs=10,
         batch_size=128,
         num_workers=0,
@@ -152,10 +154,7 @@ def get_args_parser(
         eval_period_epochs=5,
         learning_rates=[1e-6, 2e-6, 5e-6, 1e-5, 2e-5, 5e-5, 1e-4, 2e-4, 5e-4, 1e-3, 2e-3, 5e-3, 1e-2, 5e-2, 1e-1],
         val_metric_type=MetricType.MULTILABEL_AUROC,
-        test_metric_types=None,
         segmentor_fpath=None,
-        val_class_mapping_fpath=None,
-        test_class_mapping_fpaths=[None],
         decoder_type="linear"
     )
     return parser
@@ -168,101 +167,6 @@ def has_ddp_wrapper(m: nn.Module) -> bool:
 def remove_ddp_wrapper(m: nn.Module) -> nn.Module:
     return m.module if has_ddp_wrapper(m) else m
 
-
-def _pad_and_collate(batch):
-    maxlen = max(len(targets) for image, targets in batch)
-    padded_batch = [
-        (image, np.pad(targets, (0, maxlen - len(targets)), constant_values=-1)) for image, targets in batch
-    ]
-    return torch.utils.data.default_collate(padded_batch)
-
-class TransformerEncoder(torch.nn.Module):
-    def __init__(self, encoder, autocast_ctx) -> None:
-        super(TransformerEncoder, self).__init__()
-        self.encoder = encoder
-        self.encoder.eval()
-        self.autocast_ctx = autocast_ctx
-    
-    def forward(self, x):
-        with torch.no_grad():
-            with self.autocast_ctx():
-                features = self.encoder.forward_features(x)['x_norm_patchtokens']
-        return features
-
-class LinearDecoder(torch.nn.Module):
-    """Linear decoder head"""
-    DECODER_TYPE = "linear"
-
-    def __init__(self, in_channels, tokenW=32, tokenH=32, num_classes=3):
-        super().__init__()
-
-        self.in_channels = in_channels
-        self.width = tokenW
-        self.height = tokenH
-        self.decoder = torch.nn.Conv2d(in_channels, num_classes, (1,1))
-        self.decoder.weight.data.normal_(mean=0.0, std=0.01)
-        self.decoder.bias.data.zero_()
-
-    def forward(self, embeddings):
-        embeddings = embeddings.reshape(-1, self.height, self.width, self.in_channels)
-        embeddings = embeddings.permute(0,3,1,2)
-
-        return self.decoder(embeddings)
-
-class AllDecoders(nn.Module):
-    def __init__(self, decoders_dict):
-        super().__init__()
-        self.decoders_dict = nn.ModuleDict()
-        self.decoders_dict.update(decoders_dict)
-        self.decoder_type = list(decoders_dict.values())[0].DECODER_TYPE
-
-    def forward(self, inputs):
-        return {k: v.forward(inputs) for k, v in self.decoders_dict.items()}
-
-    def __len__(self):
-        return len(self.decoders_dict)
-
-
-class LinearPostprocessor(nn.Module):
-    def __init__(self, decoder, class_mapping=None):
-        super().__init__()
-        self.decoder = decoder
-        self.register_buffer("class_mapping", None if class_mapping is None else torch.LongTensor(class_mapping))
-
-    def forward(self, samples, targets):
-        logits = self.decoder(samples)
-        logits = torch.nn.functional.interpolate(logits, size=targets.shape[2], mode="bilinear", align_corners=False)
-        
-        preds = logits.argmax(dim=1)
-        return {
-            "preds": preds,
-            "target": targets,
-        }
-
-def setup_decoders(embed_dim, learning_rates, num_classes=14, decoder_type="linear"):
-    """
-    Sets up the multiple segmentors with different hyperparameters to test out the most optimal one 
-    """
-    decoders_dict = nn.ModuleDict()
-    optim_param_groups = []
-    for lr in learning_rates:
-        if decoder_type == "linear":
-            decoder = LinearDecoder(
-                embed_dim, num_classes=num_classes
-            )
-        decoder = decoder.cuda()
-        decoders_dict[
-            f"segmentor_lr_{lr:.10f}".replace(".", "_")
-        ] = decoder
-        optim_param_groups.append({"params": decoder.parameters(), "lr": lr})
-
-    decoders = AllDecoders(decoders_dict)
-    if distributed.is_enabled():
-        decoders = nn.parallel.DistributedDataParallel(decoders)
-
-    return decoders, optim_param_groups
-
-
 @torch.no_grad()
 def evaluate_segmentors(
     feature_model,
@@ -273,15 +177,14 @@ def evaluate_segmentors(
     training_num_classes,
     iteration,
     prefixstring="",
-    class_mapping=None,
-    best_classifier_on_val=None,
+    best_segmentor_on_val=None,
 ):
     logger.info("running validation !")
 
-    num_classes = len(class_mapping) if class_mapping is not None else training_num_classes
+    num_classes = training_num_classes
     labels = list(data_loader.dataset.class_names)
     metric = build_metric(metric_type, num_classes=num_classes, labels=labels)
-    postprocessors = {k: LinearPostprocessor(v, class_mapping) for k, v in decoders.decoders_dict.items()}
+    postprocessors = {k: LinearPostprocessor(v, None) for k, v in decoders.decoders_dict.items()}
     metrics = {k: metric.clone() for k in decoders.decoders_dict}
 
     _, results_dict_temp = evaluate(
@@ -298,13 +201,13 @@ def evaluate_segmentors(
     best_segmentor = ""
     eval_metric = str(list(metric)[0])
 
-    for i, (classifier_string, metric) in enumerate(results_dict_temp.items()):
-        logger.info(f"{prefixstring} -- Segmentor: {classifier_string} * {metric}")
+    for i, (segmentor_string, metric) in enumerate(results_dict_temp.items()):
+        logger.info(f"{prefixstring} -- Segmentor: {segmentor_string} * {metric}")
         if (
-            best_classifier_on_val is None and metric[eval_metric].item() > max_score
-        ) or classifier_string == best_classifier_on_val:
+            best_segmentor_on_val is None and metric[eval_metric].item() > max_score
+        ) or segmentor_string == best_segmentor_on_val:
             max_score = metric[eval_metric].item()
-            best_segmentor = classifier_string
+            best_segmentor = segmentor_string
 
     results_dict["best_segmentor"] = {"name": best_segmentor, "results": apply_method_to_nested_values(
                                                                             results_dict_temp[best_segmentor],
@@ -321,7 +224,6 @@ def evaluate_segmentors(
             f.write("\n")
 
     return results_dict
-
 
 def eval_decoders(
     *,
@@ -341,7 +243,6 @@ def eval_decoders(
     training_num_classes,
     resume=True,
     segmentor_fpath=None,
-    val_class_mapping=None,
 ):
     checkpointer = Checkpointer(decoders, output_dir, optimizer=optimizer, scheduler=scheduler)
     start_iter = checkpointer.resume_or_load(segmentor_fpath or "", resume=resume).get("iteration", 0) + 1
@@ -411,7 +312,6 @@ def eval_decoders(
                 metric_type=metric_type,
                 training_num_classes=training_num_classes,
                 iteration=iteration,
-                class_mapping=val_class_mapping,
             )
             torch.cuda.synchronize()
 
@@ -425,62 +325,8 @@ def eval_decoders(
         metric_type=metric_type,
         training_num_classes=training_num_classes,
         iteration=iteration,
-        class_mapping=val_class_mapping,
     )
     return val_results_dict, feature_model, decoders, iteration
-
-
-def make_eval_data_loader(test_dataset_str, batch_size, num_workers, metric_type):
-    test_dataset = make_dataset(
-        dataset_str=test_dataset_str,
-        transform=make_segmentation_transform(),
-        target_transform=make_segmentation_target_transform()
-    )
-    test_data_loader = make_data_loader(
-        dataset=test_dataset,
-        batch_size=batch_size,
-        num_workers=num_workers,
-        sampler_type=None, 
-        drop_last=False,
-        shuffle=False,
-        persistent_workers=False,
-        collate_fn=_pad_and_collate if metric_type == MetricType.IMAGENET_REAL_ACCURACY else None,
-    )
-    return test_data_loader
-
-
-def test_on_datasets(
-    feature_model,
-    decoders,
-    test_dataset_strs,
-    batch_size,
-    num_workers,
-    test_metric_types,
-    metrics_file_path,
-    training_num_classes,
-    iteration,
-    best_classifier_on_val,
-    prefixstring="",
-    test_class_mappings=[None],
-):
-    results_dict = {}
-    for test_dataset_str, class_mapping, metric_type in zip(test_dataset_strs, test_class_mappings, test_metric_types):
-        logger.info(f"Testing on {test_dataset_str}")
-        test_data_loader = make_eval_data_loader(test_dataset_str, batch_size, num_workers, metric_type)
-        dataset_results_dict = evaluate_segmentors(
-            feature_model,
-            remove_ddp_wrapper(decoders),
-            test_data_loader,
-            metric_type,
-            metrics_file_path,
-            training_num_classes,
-            iteration,
-            prefixstring="",
-            class_mapping=class_mapping,
-            best_classifier_on_val=best_classifier_on_val,
-        )
-        results_dict[f"{test_dataset_str}_{metric_type}"] = dataset_results_dict["best_segmentor"]
-    return results_dict
 
 
 def run_eval_segmentation(
@@ -488,7 +334,7 @@ def run_eval_segmentation(
     decoder_type,
     output_dir,
     train_dataset_str,
-    val_dataset_str,
+    test_dataset_str,
     batch_size,
     epochs,
     epoch_length,
@@ -497,42 +343,22 @@ def run_eval_segmentation(
     eval_period_epochs,
     learning_rates,
     autocast_dtype,
-    test_dataset_strs=None,
+    val_dataset_str=None,
     resume=True,
     segmentor_fpath=None,
-    val_class_mapping_fpath=None,
-    test_class_mapping_fpaths=[None],
-    val_metric_type=MetricType.MULTILABEL_AUROC,
-    test_metric_types=None,
+    val_metric_type=MetricType.SEGMENTATION_METRICS,
 ):
     seed = 0
+    torch.manual_seed(seed)
 
-    if test_dataset_strs is None:
-        test_dataset_strs = [val_dataset_str]
-    if test_metric_types is None:
-        test_metric_types = [val_metric_type] * len(test_dataset_strs)
-    else:
-        assert len(test_metric_types) == len(test_dataset_strs)
-    assert len(test_dataset_strs) == len(test_class_mapping_fpaths)
-
-    train_transform = make_segmentation_transform()
-    target_transform = make_segmentation_target_transform()
-    train_dataset = make_dataset(
-        dataset_str=train_dataset_str,
-        transform=train_transform,
-        target_transform=target_transform
-    )
-    training_num_classes = train_dataset.get_num_classes()
-    if epoch_length == None:
-        epoch_length = math.ceil(train_dataset.get_length() / batch_size)
-    eval_period_epochs *= epoch_length
-    checkpoint_period = save_checkpoint_frequency * epoch_length
-
-    sampler_type = SamplerType.INFINITE
-
+    if test_dataset_str == None:
+        raise ValueError("Test dataset cannot be None")
+    
     embed_dim = model.embed_dim
     autocast_ctx = partial(torch.cuda.amp.autocast, enabled=True, dtype=autocast_dtype)
     feature_model = TransformerEncoder(model, autocast_ctx=autocast_ctx)
+    dataset_name = train_dataset_str.split(":")[0]
+    training_num_classes = NUM_OF_CLASSES[dataset_name]
 
     decoders, optim_param_groups = setup_decoders(
         embed_dim,
@@ -541,47 +367,37 @@ def run_eval_segmentation(
         decoder_type
     )
 
+    # Make datasets.
+    image_transform = make_segmentation_transform()
+    target_transform = make_segmentation_target_transform()
+    train_dataset, val_dataset, test_dataset = make_datasets(train_dataset_str=train_dataset_str, val_dataset_str=val_dataset_str,
+                                                            test_dataset_str=test_dataset_str, train_transform=image_transform,
+                                                            eval_transform=image_transform, target_transform=target_transform)
+
+    if epoch_length == None:
+        epoch_length = math.ceil(len(train_dataset) / batch_size)
+    eval_period_epochs_ = eval_period_epochs * epoch_length
+    checkpoint_period = save_checkpoint_frequency * epoch_length
+
+    # Define checkpoint, optimizer, and scheduler
     optimizer = torch.optim.SGD(optim_param_groups, momentum=0.9, weight_decay=0)
     max_iter = epochs * epoch_length
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iter, eta_min=0)
     checkpointer = Checkpointer(decoders, output_dir, optimizer=optimizer, scheduler=scheduler)
     start_iter = checkpointer.resume_or_load(segmentor_fpath or "", resume=resume).get("iteration", 0) + 1
-    train_data_loader = make_data_loader(
-        dataset=train_dataset,
-        batch_size=batch_size,
-        num_workers=num_workers,
-        shuffle=True,
-        seed=seed,
-        sampler_type=sampler_type,
-        sampler_advance=start_iter,
-        drop_last=False,
-        persistent_workers=False,
-    )
-    val_data_loader = make_eval_data_loader(val_dataset_str, batch_size, num_workers, val_metric_type)
 
-    checkpoint_period = save_checkpoint_frequency * (epoch_length * epochs)
-
-    if val_class_mapping_fpath is not None:
-        logger.info(f"Using class mapping from {val_class_mapping_fpath}")
-        val_class_mapping = np.load(val_class_mapping_fpath)
-    else:
-        val_class_mapping = None
-
-    test_class_mappings = []
-    for class_mapping_fpath in test_class_mapping_fpaths:
-        if class_mapping_fpath is not None and class_mapping_fpath != "None":
-            logger.info(f"Using class mapping from {class_mapping_fpath}")
-            class_mapping = np.load(class_mapping_fpath)
-        else:
-            class_mapping = None
-        test_class_mappings.append(class_mapping)
+    # Make dataloaders.
+    sampler_type = SamplerType.INFINITE
+    train_data_loader, val_data_loader, test_data_loader = make_data_loaders(train_dataset=train_dataset, test_dataset=test_dataset,
+                                                                            val_dataset=val_dataset, sampler_type=sampler_type, seed=seed,
+                                                                            start_iter=start_iter, batch_size=batch_size, num_workers=num_workers)
 
     metrics_file_path = os.path.join(output_dir, "results_eval_linear.json")
     val_results_dict, feature_model, decoders, iteration = eval_decoders(
         feature_model=feature_model,
         decoders=decoders,
         train_data_loader=train_data_loader,
-        val_data_loader=val_data_loader,
+        val_data_loader=test_data_loader if val_data_loader == None else val_data_loader,
         metrics_file_path=metrics_file_path,
         optimizer=optimizer,
         scheduler=scheduler,
@@ -589,34 +405,81 @@ def run_eval_segmentation(
         max_iter=max_iter,
         checkpoint_period=checkpoint_period,
         running_checkpoint_period=epoch_length,
-        eval_period=eval_period_epochs,
+        eval_period=eval_period_epochs_,
         metric_type=val_metric_type,
         training_num_classes=training_num_classes,
         resume=resume,
-        val_class_mapping=val_class_mapping,
         segmentor_fpath=segmentor_fpath,
     )
-    results_dict = {}
-    if len(test_dataset_strs) > 1 or test_dataset_strs[0] != val_dataset_str:
-        results_dict = test_on_datasets(
-            feature_model,
-            decoders,
-            test_dataset_strs,
-            batch_size,
-            0,  # num_workers,
-            test_metric_types,
-            metrics_file_path,
-            training_num_classes,
-            iteration,
-            val_results_dict["best_segmentor"]["name"],
-            prefixstring="",
-            test_class_mappings=test_class_mappings,
+    if val_dataset_str != None: # retrain model with validation set.
+
+        start_iter = 1
+
+        val_dataset = make_dataset(
+            dataset_str=val_dataset_str,
+            transform=image_transform,
+            target_transform=target_transform
         )
+        train_dataset = torch.utils.data.ConcatDataset([train_dataset, val_dataset])
+
+        epoch_length = math.ceil(len(train_dataset) / batch_size)
+        eval_period_epochs_ = eval_period_epochs * epoch_length
+        checkpoint_period = save_checkpoint_frequency * epoch_length
+
+        train_data_loader = make_data_loader(
+            dataset=train_dataset,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            shuffle=True,
+            seed=seed,
+            sampler_type=sampler_type,
+            sampler_advance=start_iter-1,
+            drop_last=False,
+            persistent_workers=False,
+        )
+        logger.info("Retraining model with combined dataset from train and validation, using the most optimal hp.")
+        hyperparameters = extract_hyperparameters_from_segmentor(val_results_dict["best_segmentor"]["name"])
+        learning_rate = hyperparameters["lr"]
+      
+        decoders, optim_param_groups = setup_decoders(
+            embed_dim,
+            learning_rate,
+            training_num_classes,
+            decoder_type
+        )
+
+        output_dir += os.sep + 'optimal'
+        os.makedirs(output_dir, exist_ok=True)
+
+        optimizer = torch.optim.SGD(optim_param_groups, momentum=0.9, weight_decay=0)
+        max_iter = epochs * epoch_length
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iter, eta_min=0)
+        checkpointer = Checkpointer(decoders, output_dir, optimizer=optimizer, scheduler=scheduler)
+
+        val_results_dict, feature_model, decoders, iteration = eval_decoders(
+            feature_model=feature_model,
+            decoders=decoders,
+            train_data_loader=train_data_loader,
+            val_data_loader=test_data_loader,
+            metrics_file_path=metrics_file_path,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            output_dir=output_dir,
+            max_iter=max_iter,
+            checkpoint_period=checkpoint_period,
+            running_checkpoint_period=epoch_length,
+            eval_period=eval_period_epochs_,
+            metric_type=val_metric_type,
+            training_num_classes=training_num_classes,
+            resume=resume,
+            segmentor_fpath=segmentor_fpath,
+        )
+
+    results_dict = {}
     results_dict["best_segmentor"] = val_results_dict["best_segmentor"]
     logger.info("Test Results Dict " + str(results_dict))
 
     return results_dict
-
 
 def main(args):
     model, autocast_dtype = setup_and_build_model(args)
@@ -625,8 +488,7 @@ def main(args):
         decoder_type=args.decoder_type,
         output_dir=args.output_dir,
         train_dataset_str=args.train_dataset_str,
-        val_dataset_str=args.val_dataset_str,
-        test_dataset_strs=args.test_dataset_strs,
+        test_dataset_str=args.test_dataset_str,
         batch_size=args.batch_size,
         epochs=args.epochs,
         epoch_length=args.epoch_length,
@@ -635,15 +497,12 @@ def main(args):
         eval_period_epochs=args.eval_period_epochs,
         learning_rates=args.learning_rates,
         autocast_dtype=autocast_dtype,
+        val_dataset_str=args.val_dataset_str,
         resume=not args.no_resume,
         segmentor_fpath=args.segmentor_fpath,
         val_metric_type=args.val_metric_type,
-        test_metric_types=args.test_metric_types,
-        val_class_mapping_fpath=args.val_class_mapping_fpath,
-        test_class_mapping_fpaths=args.test_class_mapping_fpaths,
     )
     return 0
-
 
 if __name__ == "__main__":
     description = "Segmentation evaluation"

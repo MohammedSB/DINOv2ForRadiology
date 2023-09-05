@@ -32,6 +32,7 @@ class _Split(Enum):
         return split_lengths[self]
 
 class MC(VisionDataset):
+    NUM_OF_CLASSES = 3
     Split = _Split
 
     def __init__(
@@ -72,7 +73,7 @@ class MC(VisionDataset):
         return self.__len__()
 
     def get_num_classes(self) -> int:
-        return len(self.class_names)
+        return self.NUM_OF_CLASSES
 
     def get_image_data(self, index: int) -> np.ndarray:
         image_path = self._split_dir + os.sep + self.images[index]

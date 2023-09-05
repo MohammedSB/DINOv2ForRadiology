@@ -13,6 +13,9 @@ import skimage
 import pandas as pd
 import numpy as np
 
+logger = logging.getLogger("dinov2")
+_Target = int
+
 class _Split(Enum):
     TRAIN = "train"
     VAL = "val"
@@ -28,6 +31,7 @@ class _Split(Enum):
         return split_lengths[self]
 
 class Shenzhen(VisionDataset):
+    NUM_OF_CLASSES = 2
     Split = _Split
 
     def __init__(
@@ -63,7 +67,7 @@ class Shenzhen(VisionDataset):
         
     def _check_size(self):
         num_of_images = len(os.listdir(self._split_dir))
-        print(f"{self.split.length - num_of_images} scans are missing from {self._split.value.upper()} set")
+        logger.info(f"{self.split.length - num_of_images} scans are missing from {self._split.value.upper()} set")
 
     def get_length(self) -> int:
         return self.__len__()
@@ -75,8 +79,7 @@ class Shenzhen(VisionDataset):
         image_path = self._split_dir + os.sep + self.images[index]
         
         image = skimage.io.imread(image_path)
-        image = np.stack((image,)*3, axis=0)
-        image = torch.from_numpy(image).float()
+        image = torch.from_numpy(image).permute(2, 0, 1).float()
 
         return image
     

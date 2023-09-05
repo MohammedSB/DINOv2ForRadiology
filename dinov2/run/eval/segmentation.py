@@ -8,7 +8,7 @@ import logging
 import os
 import sys
 
-from dinov2.eval.segmentation import get_args_parser as get_segmentation_args_parser
+from dinov2.eval.segmentation.segmentation import get_args_parser as get_segmentation_args_parser
 from dinov2.logging import setup_logging
 from dinov2.run.submit import get_args_parser, submit_jobs
 
@@ -21,7 +21,7 @@ class Evaluator:
         self.args = args
 
     def __call__(self):
-        from dinov2.eval.segmentation import main as segmentation_main
+        from dinov2.eval.segmentation.segmentation import main as segmentation_main
 
         self._setup_args()
         segmentation_main(self.args)
