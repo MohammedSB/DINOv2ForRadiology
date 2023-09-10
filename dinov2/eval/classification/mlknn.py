@@ -104,27 +104,6 @@ def get_args_parser(
     return parser
 
 
-
-def filter_train(mapping, n_per_class, seed):
-    torch.manual_seed(seed)
-    final_indices = []
-    for k in mapping.keys():
-        index = torch.randperm(len(mapping[k]))[:n_per_class]
-        final_indices.append(mapping[k][index])
-    return torch.cat(final_indices).squeeze()
-
-
-def create_class_indices_mapping(labels):
-    unique_labels, inverse = torch.unique(labels, return_inverse=True)
-    mapping = {unique_labels[i]: (inverse == i).nonzero() for i in range(len(unique_labels))}
-    return mapping
-
-
-class ModuleDictWithForward(torch.nn.ModuleDict):
-    def forward(self, *args, **kwargs):
-        return {k: module(*args, **kwargs) for k, module in self._modules.items()}
-
-
 def eval_knn(
     model,
     train_dataset,

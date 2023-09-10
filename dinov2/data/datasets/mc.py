@@ -32,7 +32,6 @@ class _Split(Enum):
         return split_lengths[self]
 
 class MC(VisionDataset):
-    NUM_OF_CLASSES = 3
     Split = _Split
 
     def __init__(

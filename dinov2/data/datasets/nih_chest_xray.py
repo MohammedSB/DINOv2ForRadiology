@@ -97,12 +97,12 @@ class NIHChestXray(VisionDataset):
         self.labels = pd.merge(self.labels, subset, how="inner", on=["Image Index"])
 
         #TODO : remove
-        to_add = []
-        for i in self.labels.index:
-            if self.labels.iloc[i]["Image Index"] in self.curr_imgs:
-                to_add.append(i)
+        # to_add = []
+        # for i in self.labels.index:
+        #     if self.labels.iloc[i]["Image Index"] in self.curr_imgs:
+        #         to_add.append(i)
 
-        self.labels = self.labels.iloc[to_add]
+        # self.labels = self.labels.iloc[to_add]
         self._clean_labels()
 
     @property
@@ -157,7 +157,7 @@ class NIHChestXray(VisionDataset):
     
     def __getitem__(self, index):
         image = self.get_image_data(index)
-        target = self.get_target(index)[:10]
+        target = self.get_target(index)
 
         if self.transforms is not None:
             image, target = self.transforms(image, target)

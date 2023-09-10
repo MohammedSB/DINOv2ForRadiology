@@ -23,14 +23,13 @@ from fvcore.common.checkpoint import Checkpointer, PeriodicCheckpointer
 from dinov2.data import SamplerType, make_data_loader, make_dataset
 from dinov2.data.transforms import (make_classification_eval_transform, make_classification_train_transform,
                                     make_segmentation_transform, make_segmentation_target_transform)
-from dinov2.data.datasets.metadata import NUM_OF_CLASSES
 import dinov2.distributed as distributed
 from dinov2.eval.metrics import MetricType, build_metric
 from dinov2.eval.setup import get_args_parser as get_setup_args_parser
 from dinov2.eval.setup import setup_and_build_model
-from dinov2.eval.utils import ModelWithIntermediateLayers, evaluate, apply_method_to_nested_values, make_datasets, make_data_loaders
-from dinov2.eval.segmentation.utils import (setup_decoders, extract_hyperparameters_from_segmentor,
-                                                         LinearPostprocessor, TransformerEncoder)
+from dinov2.eval.utils import (extract_hyperparameters_from_model, ModelWithIntermediateLayers, evaluate,
+                                apply_method_to_nested_values, make_datasets, make_data_loaders)
+from dinov2.eval.segmentation.utils import (setup_decoders, LinearPostprocessor, TransformerEncoder)
 from dinov2.logging import MetricLogger
 
 
@@ -357,22 +356,21 @@ def run_eval_segmentation(
     embed_dim = model.embed_dim
     autocast_ctx = partial(torch.cuda.amp.autocast, enabled=True, dtype=autocast_dtype)
     feature_model = TransformerEncoder(model, autocast_ctx=autocast_ctx)
-    dataset_name = train_dataset_str.split(":")[0]
-    training_num_classes = NUM_OF_CLASSES[dataset_name]
 
+    # make datasets
+    image_transform = make_segmentation_transform()
+    target_transform = make_segmentation_target_transform()
+    train_dataset, val_dataset, test_dataset = make_datasets(train_dataset_str=train_dataset_str, val_dataset_str=val_dataset_str,
+                                                            test_dataset_str=test_dataset_str, train_transform=image_transform,
+                                                            eval_transform=image_transform, target_transform=target_transform)
+
+    training_num_classes = test_dataset.get_num_classes()
     decoders, optim_param_groups = setup_decoders(
         embed_dim,
         learning_rates,
         training_num_classes,
         decoder_type
     )
-
-    # Make datasets.
-    image_transform = make_segmentation_transform()
-    target_transform = make_segmentation_target_transform()
-    train_dataset, val_dataset, test_dataset = make_datasets(train_dataset_str=train_dataset_str, val_dataset_str=val_dataset_str,
-                                                            test_dataset_str=test_dataset_str, train_transform=image_transform,
-                                                            eval_transform=image_transform, target_transform=target_transform)
 
     if epoch_length == None:
         epoch_length = math.ceil(len(train_dataset) / batch_size)
@@ -438,7 +436,7 @@ def run_eval_segmentation(
             persistent_workers=False,
         )
         logger.info("Retraining model with combined dataset from train and validation, using the most optimal hp.")
-        hyperparameters = extract_hyperparameters_from_segmentor(val_results_dict["best_segmentor"]["name"])
+        hyperparameters = extract_hyperparameters_from_model(val_results_dict["best_segmentor"]["name"])
         learning_rate = hyperparameters["lr"]
       
         decoders, optim_param_groups = setup_decoders(

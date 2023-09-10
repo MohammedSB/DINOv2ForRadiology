@@ -65,18 +65,6 @@ class AllDecoders(nn.Module):
     def __len__(self):
         return len(self.decoders_dict)
 
-def extract_hyperparameters_from_segmentor(segmentor):
-    hps = segmentor.split(":")[1:]
-    hyperparameters = {}
-    for hp in hps:
-        key, value = hp.split("=")
-        if key == "lr":
-            value = float(value.replace("_", ".")) 
-            hyperparameters[key] = [value]
-        else:
-            hyperparameters[key] = [value]
-    return hyperparameters
-
 def setup_decoders(embed_dim, learning_rates, num_classes=14, decoder_type="linear"):
     """
     Sets up the multiple segmentors with different hyperparameters to test out the most optimal one 

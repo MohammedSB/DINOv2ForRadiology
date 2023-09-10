@@ -8,7 +8,7 @@ import logging
 import os
 import sys
 
-from dinov2.eval.mlknn import get_args_parser as get_knn_args_parser
+from dinov2.eval.classification.mlknn import get_args_parser as get_knn_args_parser
 from dinov2.logging import setup_logging
 from dinov2.run.submit import get_args_parser, submit_jobs
 
@@ -21,7 +21,7 @@ class Evaluator:
         self.args = args
 
     def __call__(self):
-        from dinov2.eval.mlknn import main as mlknn_main
+        from dinov2.eval.classification.mlknn import main as mlknn_main
 
         self._setup_args()
         mlknn_main(self.args)

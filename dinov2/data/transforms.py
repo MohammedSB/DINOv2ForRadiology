@@ -64,7 +64,9 @@ def make_classification_train_transform(
     mean: Sequence[float] = IMAGENET_DEFAULT_MEAN,
     std: Sequence[float] = IMAGENET_DEFAULT_STD,
 ):
-    transforms_list = [transforms.RandomResizedCrop(crop_size, interpolation=interpolation)]
+    transforms_list = [
+        transforms.RandomResizedCrop(crop_size, scale=(0.75, 1), interpolation=interpolation),
+    ]
     if hflip_prob > 0.0:
         transforms_list.append(transforms.RandomHorizontalFlip(hflip_prob))
     transforms_list.extend(
@@ -116,17 +118,5 @@ def make_segmentation_target_transform(
     transforms_list = [
         transforms.Resize((resize_size, resize_size), interpolation=interpolation),
         MaybeToTensor(),
-    ]
-    return transforms.Compose(transforms_list)
-
-def make_xray_classification_eval_transform(
-    *,
-    resize_size: int = 256,
-    crop_size: int = 224,
-) -> transforms.Compose:
-    transforms_list = [
-        xrv.datasets.XRayResizer(resize_size),
-        MaybeToTensor(),  
-        transforms.CenterCrop(crop_size),
     ]
     return transforms.Compose(transforms_list)

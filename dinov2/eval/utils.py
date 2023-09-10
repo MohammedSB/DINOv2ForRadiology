@@ -372,3 +372,19 @@ def make_data_loaders(train_dataset, test_dataset, val_dataset=None,
     )
 
     return train_data_loader, val_data_loader, test_data_loader
+
+def extract_hyperparameters_from_model(segmentor):
+    hps = segmentor.split(":")[1:]
+    hyperparameters = {}
+    for hp in hps:
+        key, value = hp.split("=")
+        if key == "lr":
+            value = float(value.replace("_", ".")) 
+            hyperparameters[key] = [value]
+        elif key == "avgpool":
+            hyperparameters[key] = [bool(value)]
+        elif key == "blocks":
+            hyperparameters[key] = [int(value)]
+        else:
+            hyperparameters[key] = [value]
+    return hyperparameters

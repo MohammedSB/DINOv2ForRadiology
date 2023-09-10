@@ -31,7 +31,6 @@ class _Split(Enum):
         return split_lengths[self]
 
 class Shenzhen(VisionDataset):
-    NUM_OF_CLASSES = 2
     Split = _Split
 
     def __init__(
