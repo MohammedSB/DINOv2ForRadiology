@@ -6,6 +6,7 @@ import shutil
 import math
 from typing import Callable, List, Optional, Tuple, Union
 from torchvision.datasets import VisionDataset
+from .medical_dataset import MedicalVisionDataset
 from sklearn import preprocessing
 
 import torch
@@ -30,7 +31,7 @@ class _Split(Enum):
         }
         return split_lengths[self]
 
-class Shenzhen(VisionDataset):
+class Shenzhen(MedicalVisionDataset):
     Split = _Split
 
     def __init__(
@@ -42,31 +43,16 @@ class Shenzhen(VisionDataset):
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
     ) -> None:
-        super().__init__(root, transforms, transform, target_transform)
+        super().__init__(split, root, transforms, transform, target_transform)
 
-        self._root = root
         self._masks_path = self._root + os.sep + "masks"
-        self._split = split
 
         self.class_id_mapping = {"background": 0, "lung": 1}
         self.class_names = list(self.class_id_mapping.keys())
 
-        self._define_split_dir() 
-        self._check_size()
-        self.images = os.listdir(self._split_dir)
-
     @property
     def split(self) -> "Shenzhen.Split":
         return self._split
-    
-    def _define_split_dir(self):
-        self._split_dir = self._root + os.sep + self._split.value
-        if self._split.value not in ["train", "val", "test"]:
-            raise ValueError(f'Unsupported split "{self.split}"') 
-        
-    def _check_size(self):
-        num_of_images = len(os.listdir(self._split_dir))
-        logger.info(f"{self.split.length - num_of_images} scans are missing from {self._split.value.upper()} set")
 
     def get_length(self) -> int:
         return self.__len__()

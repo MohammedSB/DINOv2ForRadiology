@@ -1,17 +1,17 @@
 import csv
-from enum import Enum
 import logging
 import os
 import shutil
+from enum import Enum
 from typing import Callable, List, Optional, Tuple, Union
-from torchvision.datasets import VisionDataset
-from sklearn import preprocessing
 
-import torch
-import skimage
-import pandas as pd
 import numpy as np
-
+import pandas as pd
+import skimage
+import torch
+from sklearn import preprocessing
+from torchvision.datasets import VisionDataset
+from .medical_dataset import MedicalVisionDataset
 
 logger = logging.getLogger("dinov2")
 _Target = int
@@ -30,7 +30,7 @@ class _Split(Enum):
         }
         return split_lengths[self]
 
-class NIHChestXray(VisionDataset):
+class NIHChestXray(MedicalVisionDataset):
     Split = _Split
     MULTILABEL = True
 
@@ -43,30 +43,17 @@ class NIHChestXray(VisionDataset):
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
     ) -> None:
-        super().__init__(root, transforms, transform, target_transform)
+        super().__init__(split, root, transforms, transform, target_transform)
         
         # Define paths for the data
-        self._root = root 
         self.curr_imgs = os.listdir(root) #TODO: Remove
 
         # Set the labels dataframe
         labels_path = self._root + os.sep + "labels"
         self.labels = pd.read_csv(labels_path + ".csv")
 
-        self._split = split
-        self._define_split_dir() 
         self._extract_subset()
-        self._check_size()
 
-    def _check_size(self):
-        num_of_images = len(os.listdir(self._split_dir))
-        logger.info(f"{self.split.length - num_of_images} x-ray's are missing from {self._split.value.upper()} set")
-
-    def _define_split_dir(self):
-        self._split_dir = self._root + os.sep + self._split.value
-        if self._split.value not in ["train", "val", "test"]:
-            raise ValueError(f'Unsupported split "{self.split}"') 
-        
     def _clean_labels(self):
         # Define inner split string function
         def spilt_string(string):
@@ -109,25 +96,11 @@ class NIHChestXray(VisionDataset):
     def split(self) -> "NIHChestXray.Split":
         return self._split
     
-    def _get_class_ids(self) -> list:
-        return self._class_ids
-    
-    def _get_class_names(self) -> list:
-        return self.class_names
-    
     def get_length(self) -> int:
         return self.__len__()
     
     def get_num_classes(self) -> int:
         return len(self.class_names)
-
-    def find_class_id(self, class_index: int) -> str:
-        class_ids = self._get_class_ids()
-        return str(class_ids[class_index])
-
-    def find_class_name(self, class_index: int) -> str:
-        class_names = self._get_class_names()
-        return str(class_names[class_index])
 
     def get_image_data(self, index: int) :
         data_point = self.labels.iloc[index]
@@ -145,15 +118,6 @@ class NIHChestXray(VisionDataset):
 
     def get_targets(self) -> np.ndarray:
         return self.targets
-
-    def get_class_id(self, index: int) -> str:
-        class_id = self.targets[index]
-        return str(class_id)
-
-    def get_class_name(self, index: int) -> str:
-        class_name_index = self.targets[index]
-        class_name = self.class_names[class_name_index]
-        return str(class_name)
     
     def __getitem__(self, index):
         image = self.get_image_data(index)
