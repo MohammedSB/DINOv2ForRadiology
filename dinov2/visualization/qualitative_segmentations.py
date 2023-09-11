@@ -21,7 +21,7 @@ from dinov2.data.transforms import make_segmentation_transform, make_segmentatio
 from dinov2.eval.metrics import MetricAveraging, build_metric, build_segmentation_metrics
 from dinov2.eval.setup import setup_and_build_model, get_args_parser as get_setup_args_parser
 from dinov2.logging import MetricLogger
-from dinov2.eval.segmentation import setup_decoders, TransformerEncoder, LinearDecoder
+from dinov2.eval.segmentation.utils import setup_decoders, TransformerEncoder, LinearDecoder
 
 def get_args_parser(
     description: Optional[str] = None,
@@ -74,7 +74,7 @@ def get_args_parser(
         dataset_str="MC:split=TEST",
         num_of_images = 5,
         random = False,
-        learning_rates=[1e-6, 2e-6, 5e-6, 1e-5, 2e-5, 5e-5, 1e-4, 2e-4, 5e-4, 1e-3, 2e-3, 5e-3, 1e-2, 5e-2, 1e-1],
+        learning_rates=[0],
         decoder=["linear"]
     )
     return parser
@@ -103,16 +103,15 @@ def run_qualtitave_result_generation(
     num_of_classes = dataset.get_num_classes()
 
     embed_dim = model.embed_dim
-    decoders, optim_param_groups = setup_decoders(
+    decoder, optim_param_groups = setup_decoders(
         embed_dim,
         learning_rates,
         num_of_classes,
     )
-    checkpointer = Checkpointer(decoders, head_path)
+    checkpointer = Checkpointer(decoder, head_path)
     checkpointer.resume_or_load(head_path, resume=True)
 
     autocast_ctx = partial(torch.cuda.amp.autocast, enabled=True, dtype=autocast_dtype)
-    decoder = decoders.module.decoders_dict["segmentor_lr_0_1000000000"]
     feature_model = TransformerEncoder(model, autocast_ctx=autocast_ctx)
 
     highlight_multipler = 50
