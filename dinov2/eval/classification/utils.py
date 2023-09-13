@@ -6,7 +6,7 @@ from dinov2.eval.utils import is_zero_matrix
 def classifier_forward_pass(feature_model, classifier_heads, data, is_3d=False):
     if is_3d:
         batch_features = [] 
-        for batch_scans in data:
+        for batch_scans in data: # calculate the features for every scan in all scans of the batch
             scans = []
             for scan in batch_scans:
                 if not is_zero_matrix(scan): scans.append(feature_model(scan.unsqueeze(0)))
@@ -14,12 +14,11 @@ def classifier_forward_pass(feature_model, classifier_heads, data, is_3d=False):
         outputs = [
             list(classifier_heads(batch_feature).values()) for batch_feature in batch_features
             ]
-        classifier_outputs = []
-        for output in outputs:
-            classifier_outputs.append(torch.stack(output).squeeze())
-        outputs = torch.stack(classifier_outputs, dim=1)
-        outputs = {
-            list(classifier_heads.module.classifiers_dict.keys())[i]: output
+        classifier_outputs = [torch.stack(output).squeeze() for output in outputs] # stack across classifiers
+        outputs = torch.stack(classifier_outputs, dim=1) # stack across batch
+        classifiers = list(classifier_heads.module.classifiers_dict.keys())
+        outputs = { # output for every classifer
+            classifiers[i]: output 
             for i, output in enumerate(outputs)
             }
     else:
