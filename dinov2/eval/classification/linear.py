@@ -29,6 +29,7 @@ from dinov2.eval.setup import setup_and_build_model
 from dinov2.eval.utils import (ModelWithIntermediateLayers, evaluate, apply_method_to_nested_values,
                                 make_datasets, make_data_loaders, extract_hyperparameters_from_model,
                                 is_zero_matrix, collate_fn_3d)
+from dinov2.eval.classification.utils import classifier_forward_pass
 from dinov2.logging import MetricLogger
 
 
@@ -106,7 +107,7 @@ def get_args_parser(
         help="Learning rates to grid search.",
     )
     parser.add_argument(
-        "--n-last-blocks-list",
+        "--n-last-blocks",
         nargs="+",
         type=int
     )
@@ -154,7 +155,7 @@ def get_args_parser(
         save_checkpoint_frequency=5,
         eval_period_epochs=5,
         learning_rates=[1e-6, 2e-6, 5e-6, 1e-5, 2e-5, 5e-5, 1e-4, 5e-4, 1e-3, 2e-3, 5e-3, 1e-2, 5e-2, 1e-1],
-        n_last_blocks_list=[1,4],
+        n_last_blocks=[1,4],
         avgpools=[True, False],
         val_metric_type=MetricType.MULTILABEL_AUROC,
         classifier_fpath=None,
@@ -199,7 +200,9 @@ class LinearClassifier(nn.Module):
         self.linear.bias.data.zero_()
 
     def forward(self, x_tokens_list):
-        output = create_linear_input(x_tokens_list, self.use_n_blocks, self.use_avgpool)
+        output = torch.stack( # If 3D, take average of all slices.
+            [create_linear_input(o, self.use_n_blocks, self.use_avgpool) for o in x_tokens_list]
+            ).mean(dim=0)
         return self.linear(output)
 
 
@@ -360,21 +363,10 @@ def eval_linear(
         data = data.cuda(non_blocking=True)
         labels = labels.cuda(non_blocking=True)
 
-        if is_3d:
-            for batch_scans in data:
-                scans = []
-                print(batch_scans.shape)
-                for scan in batch_scans:
-                    if not is_zero_matrix(scan):
-                        scan_features = feature_model(scan.unsqueeze(0))
-                        scans.append(scan_features)
-                print(features.shape)
-                features = torch.stack(scans).mean(dim=0)
-                print(features.shape)
-        else:
-            features = feature_model(data)
-        outputs = linear_classifiers(features)
-
+        # forward pass
+        outputs = classifier_forward_pass(feature_model, linear_classifiers, data=data, is_3d=is_3d)
+        
+        # calculate loss
         if is_multilabel:  
             losses = {}
             batch_size = labels.shape[0]
@@ -385,12 +377,10 @@ def eval_linear(
                     batch_labels = labels[batch_index]
                     for index, class_ in enumerate(batch_predictions): # Loop through each class prediciton
                         per_class_loss += nn.BCEWithLogitsLoss()(class_.float(), batch_labels[index].float())
-
                     losses[f"loss_{k}"] = per_class_loss / len(batch_labels) # Take average of all binary classification losses        
         else:
-            loss_fn = nn.BCEWithLogitsLoss if training_num_classes == 1 else nn.CrossEntropyLoss()
-            losses = {f"loss_{k}": loss_fn(v, labels) for k, v in outputs.items()}
-
+            loss_fn = nn.BCEWithLogitsLoss() if training_num_classes == 1 else nn.CrossEntropyLoss()
+            losses = {f"loss_{k}": loss_fn(v, labels.float()) for k, v in outputs.items()}        
 
         loss = sum(losses.values())
 
@@ -647,7 +637,7 @@ def main(args):
         save_checkpoint_frequency=args.save_checkpoint_frequency,
         eval_period_epochs=args.eval_period_epochs,
         learning_rates=args.learning_rates,
-        n_last_blocks_list=args.n_last_blocks_list,
+        n_last_blocks_list=args.n_last_blocks,
         avgpools=args.avgpools,
         autocast_dtype=autocast_dtype,
         resume=not args.no_resume,
