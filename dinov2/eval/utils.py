@@ -336,7 +336,7 @@ def make_datasets(train_dataset_str, test_dataset_str, val_dataset_str=None,
 
 def make_data_loaders(train_dataset, test_dataset, val_dataset=None,
                     sampler_type=SamplerType.INFINITE, seed=0, start_iter=1,
-                    batch_size=16, num_workers=0):
+                    batch_size=16, num_workers=0, collate_fn=None):
     train_data_loader = make_data_loader(
         dataset=train_dataset,
         batch_size=batch_size,
@@ -347,6 +347,7 @@ def make_data_loaders(train_dataset, test_dataset, val_dataset=None,
         sampler_advance=start_iter-1,
         drop_last=False,
         persistent_workers=False,
+        collate_fn=collate_fn
     )
     val_data_loader = None
     if val_dataset != None:
@@ -358,7 +359,7 @@ def make_data_loaders(train_dataset, test_dataset, val_dataset=None,
             drop_last=False,
             shuffle=False,
             persistent_workers=False,
-            collate_fn=None,
+            collate_fn=collate_fn,
         )
     test_data_loader = make_data_loader(
         dataset=test_dataset,
@@ -368,7 +369,7 @@ def make_data_loaders(train_dataset, test_dataset, val_dataset=None,
         drop_last=False,
         shuffle=False,
         persistent_workers=False,
-        collate_fn=None,
+        collate_fn=collate_fn,
     )
 
     return train_data_loader, val_data_loader, test_data_loader
@@ -388,3 +389,22 @@ def extract_hyperparameters_from_model(segmentor):
         else:
             hyperparameters[key] = [value]
     return hyperparameters
+
+def collate_fn_3d(batch):
+    # batch is a list of tuples where each tuple is (video, label)
+    videos, labels = zip(*batch)
+
+    # Get the length of the longest video
+    max_len = max(video.size(0) for video in videos)
+
+    # Create a tensor to hold the padded videos
+    padded_videos = torch.zeros(len(videos), max_len, 3, 224, 224)
+
+    # Pad each video
+    for i, video in enumerate(videos):
+        padded_videos[i, :video.size(0)] = video
+
+    return padded_videos, torch.tensor(labels)
+
+def is_zero_matrix(matrix):
+    return torch.allclose(matrix, torch.zeros_like(matrix))

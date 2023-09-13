@@ -103,16 +103,18 @@ def run_qualtitave_result_generation(
     num_of_classes = dataset.get_num_classes()
 
     embed_dim = model.embed_dim
-    decoder, optim_param_groups = setup_decoders(
+    decoders, optim_param_groups = setup_decoders(
         embed_dim,
         learning_rates,
         num_of_classes,
     )
-    checkpointer = Checkpointer(decoder, head_path)
+    checkpointer = Checkpointer(decoders, head_path)
     checkpointer.resume_or_load(head_path, resume=True)
 
     autocast_ctx = partial(torch.cuda.amp.autocast, enabled=True, dtype=autocast_dtype)
     feature_model = TransformerEncoder(model, autocast_ctx=autocast_ctx)
+
+    decoder = list(decoders.module.decoders_dict.values())[0]
 
     highlight_multipler = 50
     metric = build_segmentation_metrics(average_type=MetricAveraging.SEGMENTATION_METRICS, num_labels=3).cuda()

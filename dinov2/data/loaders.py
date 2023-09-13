@@ -11,7 +11,7 @@ from typing import Any, Callable, List, Optional, TypeVar
 import torch
 from torch.utils.data import Sampler
 
-from .datasets import NIHChestXray, ImageNet, ImageNet22k, MC, Shenzhen
+from .datasets import NIHChestXray, ImageNet, ImageNet22k, MC, Shenzhen, SARSCoV2CT
 from .samplers import EpochSampler, InfiniteSampler, ShardedInfiniteSampler
 
 
@@ -63,6 +63,8 @@ def _parse_dataset_str(dataset_str: str):
         class_ = MC
     elif name == "Shenzhen":
         class_ = Shenzhen
+    elif name == "SARSCoV2CT":
+        class_ = SARSCoV2CT
     else:
         raise ValueError(f'Unsupported dataset "{name}"')
     

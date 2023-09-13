@@ -32,7 +32,6 @@ class _Split(Enum):
 
 class NIHChestXray(MedicalVisionDataset):
     Split = _Split
-    MULTILABEL = True
 
     def __init__(
         self,
@@ -101,6 +100,12 @@ class NIHChestXray(MedicalVisionDataset):
     
     def get_num_classes(self) -> int:
         return len(self.class_names)
+
+    def is_3d(self) -> bool:
+        return False
+    
+    def is_multilabel(self) -> bool:
+        return True
 
     def get_image_data(self, index: int) :
         data_point = self.labels.iloc[index]

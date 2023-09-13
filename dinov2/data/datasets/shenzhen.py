@@ -60,6 +60,9 @@ class Shenzhen(MedicalVisionDataset):
     def get_num_classes(self) -> int:
         return len(self.class_names)
 
+    def is_3d(self) -> bool:
+        return False
+
     def get_image_data(self, index: int) -> np.ndarray:
         image_path = self._split_dir + os.sep + self.images[index]
         

@@ -58,7 +58,10 @@ class MC(MedicalVisionDataset):
         return self.__len__()
 
     def get_num_classes(self) -> int:
-        return self.NUM_OF_CLASSES
+        return len(self.class_names)
+    
+    def is_3d(self) -> bool:
+        return False
 
     def get_image_data(self, index: int) -> np.ndarray:
         image_path = self._split_dir + os.sep + self.images[index]

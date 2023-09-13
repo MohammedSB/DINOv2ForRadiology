@@ -27,7 +27,8 @@ from dinov2.eval.metrics import MetricType, build_metric
 from dinov2.eval.setup import get_args_parser as get_setup_args_parser
 from dinov2.eval.setup import setup_and_build_model
 from dinov2.eval.utils import (ModelWithIntermediateLayers, evaluate, apply_method_to_nested_values,
-                                make_datasets, make_data_loaders, extract_hyperparameters_from_model)
+                                make_datasets, make_data_loaders, extract_hyperparameters_from_model,
+                                is_zero_matrix, collate_fn_3d)
 from dinov2.logging import MetricLogger
 
 
@@ -67,6 +68,11 @@ def get_args_parser(
         "--epochs",
         type=int,
         help="Number of training epochs",
+    )
+    parser.add_argument(
+        "--val-epochs",
+        type=int,
+        help="Number of epochs for testing on validation",
     )
     parser.add_argument(
         "--batch-size",
@@ -141,6 +147,7 @@ def get_args_parser(
         val_dataset_str=None,
         test_dataset_str="NIHChestXray:split=TEST",
         epochs=10,
+        val_epochs=None,
         batch_size=128,
         num_workers=8,
         epoch_length=None,
@@ -333,6 +340,7 @@ def eval_linear(
     resume=True,
     classifier_fpath=None,
     is_multilabel=True,
+    is_3d = False,
 ):
     checkpointer = Checkpointer(linear_classifiers, output_dir, optimizer=optimizer, scheduler=scheduler)
     start_iter = checkpointer.resume_or_load(classifier_fpath or "", resume=resume).get("iteration", 0) + 1
@@ -352,9 +360,21 @@ def eval_linear(
         data = data.cuda(non_blocking=True)
         labels = labels.cuda(non_blocking=True)
 
-        features = feature_model(data)
+        if is_3d:
+            for batch_scans in data:
+                scans = []
+                print(batch_scans.shape)
+                for scan in batch_scans:
+                    if not is_zero_matrix(scan):
+                        scan_features = feature_model(scan.unsqueeze(0))
+                        scans.append(scan_features)
+                print(features.shape)
+                features = torch.stack(scans).mean(dim=0)
+                print(features.shape)
+        else:
+            features = feature_model(data)
         outputs = linear_classifiers(features)
-        
+
         if is_multilabel:  
             losses = {}
             batch_size = labels.shape[0]
@@ -366,9 +386,10 @@ def eval_linear(
                     for index, class_ in enumerate(batch_predictions): # Loop through each class prediciton
                         per_class_loss += nn.BCEWithLogitsLoss()(class_.float(), batch_labels[index].float())
 
-                    losses[f"loss_{k}"] = per_class_loss / len(batch_labels) # Take average of all binary classification losses
+                    losses[f"loss_{k}"] = per_class_loss / len(batch_labels) # Take average of all binary classification losses        
         else:
-            losses = {f"loss_{k}": nn.CrossEntropyLoss()(v, labels) for k, v in outputs.items()}
+            loss_fn = nn.BCEWithLogitsLoss if training_num_classes == 1 else nn.CrossEntropyLoss()
+            losses = {f"loss_{k}": loss_fn(v, labels) for k, v in outputs.items()}
 
 
         loss = sum(losses.values())
@@ -448,6 +469,7 @@ def run_eval_linear(
     test_dataset_str,
     batch_size,
     epochs,
+    val_epochs,
     epoch_length,
     num_workers,
     save_checkpoint_frequency,
@@ -476,10 +498,15 @@ def run_eval_linear(
     train_dataset, val_dataset, test_dataset = make_datasets(train_dataset_str=train_dataset_str, val_dataset_str=val_dataset_str,
                                                         test_dataset_str=test_dataset_str, train_transform=train_transform,
                                                         eval_transform=eval_transform)
-    sample_output = feature_model(train_dataset[0][0].unsqueeze(0).cuda())
-
     training_num_classes = test_dataset.get_num_classes()
-    is_multilabel = test_dataset.MULTILABEL
+    training_num_classes = 1 if training_num_classes == 2 else training_num_classes
+    is_multilabel = test_dataset.is_multilabel()
+    is_3d = test_dataset.is_3d()
+    collate_fn = None if not is_3d else collate_fn_3d
+
+    sample_input = train_dataset[0][0][0] if is_3d else train_dataset[0][0] 
+    sample_output = feature_model(sample_input.unsqueeze(0).cuda())
+
 
     if epoch_length == None:
         epoch_length = math.ceil(train_dataset.get_length() / batch_size)
@@ -495,7 +522,10 @@ def run_eval_linear(
     )
 
     optimizer = torch.optim.SGD(optim_param_groups, momentum=0.9, weight_decay=0)
-    max_iter = epochs * epoch_length
+    if val_epochs is not None:
+        max_iter = epoch_length * val_epochs
+    else:
+        max_iter = epoch_length * epochs 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iter, eta_min=0)
     checkpointer = Checkpointer(linear_classifiers, output_dir, optimizer=optimizer, scheduler=scheduler)
     start_iter = checkpointer.resume_or_load(classifier_fpath or "", resume=resume).get("iteration", 0) + 1
@@ -503,7 +533,8 @@ def run_eval_linear(
     sampler_type = SamplerType.INFINITE
     train_data_loader, val_data_loader, test_data_loader = make_data_loaders(train_dataset=train_dataset, test_dataset=test_dataset,
                                                                         val_dataset=val_dataset, sampler_type=sampler_type, seed=seed,
-                                                                        start_iter=start_iter, batch_size=batch_size, num_workers=num_workers)
+                                                                        start_iter=start_iter, batch_size=batch_size, num_workers=num_workers,
+                                                                        collate_fn=collate_fn)
 
     metrics_file_path = os.path.join(output_dir, "results_eval_linear.json")
     val_results_dict, feature_model, linear_classifiers, iteration = eval_linear(
@@ -523,7 +554,8 @@ def run_eval_linear(
         training_num_classes=training_num_classes,
         resume=resume,
         classifier_fpath=classifier_fpath,
-        is_multilabel=is_multilabel
+        is_multilabel=is_multilabel,
+        is_3d=is_3d
     )
 
     if val_dataset_str != None: # retrain model with validation set.
@@ -588,7 +620,8 @@ def run_eval_linear(
             training_num_classes=training_num_classes,
             resume=resume,
             classifier_fpath=classifier_fpath,
-            is_multilabel=is_multilabel
+            is_multilabel=is_multilabel,
+            is_3d=is_3d
         )
 
     results_dict = {}
@@ -608,6 +641,7 @@ def main(args):
         test_dataset_str=args.test_dataset_str,
         batch_size=args.batch_size,
         epochs=args.epochs,
+        val_epochs=args.val_epochs,
         epoch_length=args.epoch_length,
         num_workers=args.num_workers,
         save_checkpoint_frequency=args.save_checkpoint_frequency,

@@ -2,6 +2,7 @@ import logging
 import os
 from typing import Callable, Optional
 from torchvision.datasets import VisionDataset
+from abc import ABC, abstractmethod
 
 logger = logging.getLogger("dinov2")
 
@@ -30,4 +31,12 @@ class MedicalVisionDataset(VisionDataset):
     def _define_split_dir(self):
         self._split_dir = self._root + os.sep + self._split.value
         if self._split.value not in ["train", "val", "test"]:
-            raise ValueError(f'Unsupported split "{self.split}"') 
+            raise ValueError(f'Unsupported split "{self.split}"')
+         
+    @abstractmethod
+    def is_3d(self) -> bool:
+        pass
+
+    @abstractmethod
+    def get_num_classes(self) -> int:
+        pass
