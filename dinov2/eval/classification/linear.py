@@ -225,7 +225,7 @@ def evaluate_linear_classifiers(
 
     if distributed.is_main_process():
         with open(metrics_file_path, "a") as f:
-            f.write(f"iter: {iteration}\n")
+            f.write(f"{prefixstring}\n")
             for k, v in results_dict.items():
                 f.write(json.dumps({k: v}) + "\n")
             f.write("\n")
@@ -323,7 +323,7 @@ def eval_linear(
                 linear_classifiers=remove_ddp_wrapper(linear_classifiers),
                 data_loader=val_data_loader,
                 metrics_file_path=metrics_file_path,
-                prefixstring=f"ITER: {iteration}",
+                prefixstring=f"ITER: {iteration} {val_data_loader.dataset.split.value}",
                 metric_type=metric_type,
                 training_num_classes=training_num_classes,
                 iteration=iteration,
@@ -337,6 +337,7 @@ def eval_linear(
         linear_classifiers=remove_ddp_wrapper(linear_classifiers),
         data_loader=val_data_loader,
         metrics_file_path=metrics_file_path,
+        prefixstring=f"ITER: {iteration} {val_data_loader.dataset.split.value}",
         metric_type=metric_type,
         training_num_classes=training_num_classes,
         iteration=iteration,
@@ -503,7 +504,6 @@ def run_eval_linear(
             resume=resume,
             classifier_fpath=classifier_fpath,
             is_multilabel=is_multilabel,
-            is_3d=is_3d
         )
 
     results_dict = {}

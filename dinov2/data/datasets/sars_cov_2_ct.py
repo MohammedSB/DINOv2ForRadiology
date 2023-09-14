@@ -43,6 +43,11 @@ class SARSCoV2CT(MedicalVisionDataset):
         target_transform: Optional[Callable] = None,
     ) -> None:
         super().__init__(split, root, transforms, transform, target_transform)
+
+        self.class_names = [
+            "Negative",
+            "Positive"
+        ]
         
     @property
     def split(self) -> "SARSCoV2CT.Split":

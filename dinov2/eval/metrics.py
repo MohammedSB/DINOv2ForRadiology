@@ -15,7 +15,7 @@ from torchmetrics import Metric, MetricCollection
 from torchmetrics.wrappers import ClasswiseWrapper
 from torchmetrics.classification import (MultilabelAUROC, MultilabelF1Score, MultilabelAccuracy, MulticlassF1Score, 
                                         MulticlassAccuracy, MulticlassAUROC, Accuracy, BinaryF1Score, BinaryAUROC,
-                                        JaccardIndex, MulticlassJaccardIndex, Dice)
+                                        JaccardIndex, MulticlassJaccardIndex, Dice, BinaryAUROC)
 from torchmetrics.utilities.data import dim_zero_cat, select_topk
 
 logger = logging.getLogger("dinov2")
@@ -25,6 +25,7 @@ class MetricType(Enum):
     MEAN_PER_CLASS_ACCURACY = "mean_per_class_accuracy"
     MULTILABEL_ACCURACY = "multilabel_accuracy"
     MULTILABEL_AUROC = "multilabel_auc"
+    BINARY_AUROC = "binary_auc"
     PER_CLASS_ACCURACY = "per_class_accuracy"
     IMAGENET_REAL_ACCURACY = "imagenet_real_accuracy"
 
@@ -43,6 +44,7 @@ class MetricAveraging(Enum):
     MEAN_PER_CLASS_ACCURACY = "macro"
     MULTILABEL_ACCURACY = "macro"
     MULTILABEL_AUROC = "macro"
+    BINARY_AUROC = "macro"
     MULTCLASS_JACCARD = "macro"
     PER_CLASS_ACCURACY = "none"
 
@@ -70,6 +72,9 @@ def build_metric(metric_type: MetricType, *, num_classes: int, labels = None, ks
             average_type=metric_type.accuracy_averaging,
             num_labels=num_classes,
         )
+    elif metric_type == MetricType.BINARY_AUROC:
+        return build_binary_auroc_metric()
+
     if metric_type.accuracy_averaging is not None:
         return build_topk_accuracy_metric(
             average_type=metric_type.accuracy_averaging,
@@ -105,6 +110,12 @@ def build_multilabel_auroc_metric(average_type: MetricAveraging, num_labels: int
             "auroc": ClasswiseWrapper(MultilabelAUROC(num_labels=num_labels, average=None), labels=labels, prefix="_"),
         })
     }
+    return MetricCollection(metrics)
+
+def build_binary_auroc_metric():
+    metrics: Dict[str, Metric] = {
+        "auroc": BinaryAUROC()
+        }
     return MetricCollection(metrics)
 
 def build_multilabel_metrics(average_type: MetricAveraging, num_labels: int, labels=None):

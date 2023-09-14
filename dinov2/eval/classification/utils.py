@@ -23,7 +23,7 @@ def create_linear_input(x_tokens_list, use_n_blocks, use_avgpool):
 class LinearClassifier(nn.Module):
     """Linear layer to train on top of frozen features"""
 
-    def __init__(self, out_dim, use_n_blocks, use_avgpool, num_classes=1000):
+    def __init__(self, out_dim, use_n_blocks, use_avgpool, num_classes=1000, is_3d=False):
         super().__init__()
         self.out_dim = out_dim
         self.use_n_blocks = use_n_blocks
@@ -32,40 +32,36 @@ class LinearClassifier(nn.Module):
         self.linear = nn.Linear(out_dim, num_classes)
         self.linear.weight.data.normal_(mean=0.0, std=0.01)
         self.linear.bias.data.zero_()
-
-    def forward(self, x_tokens_list):
-        output = torch.stack( # If 3D, take average of all slices.
-            [create_linear_input(o, self.use_n_blocks, self.use_avgpool) for o in x_tokens_list]
-            ).mean(dim=0)
-        return self.linear(output)
-
-
-class AllClassifiers(nn.Module):
-    def __init__(self, classifiers_dict, is_3d=False):
-        super().__init__()
-        self.classifiers_dict = nn.ModuleDict()
-        self.classifiers_dict.update(classifiers_dict)
         self.is_3d = is_3d
 
     def forward_3d(self, inputs):
-        outputs = [
-            list(self.all_classifiers_forward(batch_feature).values()) for batch_feature in inputs
-            ]
-        classifier_outputs = [torch.stack(output).squeeze() for output in outputs] # stack across classifiers
-        outputs = torch.stack(classifier_outputs, dim=1) # stack across batch
-        classifiers = list(self.classifiers_dict.keys())
-        outputs = { # output for every classifer
-            classifiers[i]: output 
-            for i, output in enumerate(outputs)
-        }
+        outputs_per_batch = []
+        for batch in inputs:
+            outputs_per_batch.append(self.forward_(batch))
+        outputs = torch.stack(outputs_per_batch).squeeze()
         return outputs
+    
+    def forward_(self, inputs):
+        output = torch.stack( # If 3D, take average of all slices.
+            [create_linear_input(image, self.use_n_blocks, self.use_avgpool) for image in inputs]
+            ).mean(dim=0).squeeze()
+        return output
+    
+    def forward(self, images):
+        if self.is_3d: output = self.forward_3d(images)
+        else: output = self.forward_(images)
 
-    def all_classifiers_forward(self, inputs):
-        return {k: v.forward(inputs) for k, v in self.classifiers_dict.items()}
+        return self.linear(output).squeeze()
+
+
+class AllClassifiers(nn.Module):
+    def __init__(self, classifiers_dict):
+        super().__init__()
+        self.classifiers_dict = nn.ModuleDict()
+        self.classifiers_dict.update(classifiers_dict)
 
     def forward(self, inputs):
-        if self.is_3d: return self.forward_3d(inputs)
-        return self.all_classifiers_forward(inputs)
+        return {k: v.forward(inputs) for k, v in self.classifiers_dict.items()}
 
     def __len__(self):
         return len(self.classifiers_dict)
@@ -96,7 +92,7 @@ def setup_linear_classifiers(sample_output, n_last_blocks_list, learning_rates, 
                 lr = _lr
                 out_dim = create_linear_input(sample_output, use_n_blocks=n, use_avgpool=avgpool).shape[1]
                 linear_classifier = LinearClassifier(
-                    out_dim, use_n_blocks=n, use_avgpool=avgpool, num_classes=num_classes
+                    out_dim, use_n_blocks=n, use_avgpool=avgpool, num_classes=num_classes, is_3d=is_3d
                 )
                 linear_classifier = linear_classifier.cuda()
                 linear_classifiers_dict[
@@ -104,7 +100,7 @@ def setup_linear_classifiers(sample_output, n_last_blocks_list, learning_rates, 
                 ] = linear_classifier
                 optim_param_groups.append({"params": linear_classifier.parameters(), "lr": lr})
 
-    linear_classifiers = AllClassifiers(linear_classifiers_dict, is_3d=is_3d)
+    linear_classifiers = AllClassifiers(linear_classifiers_dict)
     if distributed.is_enabled():
         linear_classifiers = nn.parallel.DistributedDataParallel(linear_classifiers)
 

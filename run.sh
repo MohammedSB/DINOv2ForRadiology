@@ -4,9 +4,10 @@ PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/linear.py 
     --gpus 1 \
     --nodes 1 \
     --batch-size 4 \
-    --val-epochs 50 \
-    --eval-period-epochs 100 \
-    --epochs 4 \
+    --val-epochs 1 \
+    --eval-period-epochs 1 \
+    --epochs 1 \
+    --learning-rates 1e-2 \
     --n-last-blocks 1 \
     --avgpools False \
     --val-metric-type multilabel_auc \
@@ -21,12 +22,12 @@ PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/linear.py 
 #     --gpus 1 \
 #     --nodes 1 \
 #     --batch-size 4 \
-#     --val-epochs 50 \
-#     --eval-period-epochs 100 \
-#     --epochs 4 \
+#     --val-epochs 5 \
+#     --eval-period-epochs 1 \
+#     --epochs 1 \
 #     --n-last-blocks 1 \
 #     --avgpools False \
-#     --val-metric-type multilabel_auc \
+#     --val-metric-type binary_auc \
 #     --config-file dinov2/configs/eval/vits14_pretrain.yaml \
 #     --pretrained-weights models/dinov2_vits14_pretrain.pth \
 #     --output-dir results/NIH/dinov2_vits14/knn \
