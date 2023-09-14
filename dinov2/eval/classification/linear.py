@@ -464,6 +464,7 @@ def run_eval_linear(
             sampler_advance=start_iter-1,
             drop_last=False,
             persistent_workers=False,
+            collate_fn=collate_fn
         )
         logger.info("Retraining model with combined dataset from train and validation, using the most optimal hp.")
         hyperparameters = extract_hyperparameters_from_model(val_results_dict["best_classifier"]["name"])
