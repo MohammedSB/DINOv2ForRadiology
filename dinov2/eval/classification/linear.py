@@ -29,7 +29,7 @@ from dinov2.eval.setup import setup_and_build_model
 from dinov2.eval.utils import (ModelWithIntermediateLayers, evaluate, apply_method_to_nested_values,
                                 make_datasets, make_data_loaders, extract_hyperparameters_from_model,
                                 is_zero_matrix, collate_fn_3d)
-from dinov2.eval.classification.utils import classifier_forward_pass
+from dinov2.eval.classification.utils import (setup_linear_classifiers, LinearPostprocessor)
 from dinov2.logging import MetricLogger
 
 
@@ -170,99 +170,8 @@ def has_ddp_wrapper(m: nn.Module) -> bool:
 def remove_ddp_wrapper(m: nn.Module) -> nn.Module:
     return m.module if has_ddp_wrapper(m) else m
 
-
-def create_linear_input(x_tokens_list, use_n_blocks, use_avgpool):
-    intermediate_output = x_tokens_list[-use_n_blocks:]
-    output = torch.cat([class_token for _, class_token in intermediate_output], dim=-1)
-    if use_avgpool:
-        output = torch.cat(
-            (
-                output,
-                torch.mean(intermediate_output[-1][0], dim=1),  # patch tokens
-            ),
-            dim=-1,
-        )
-        output = output.reshape(output.shape[0], -1)
-    return output.float()
-
-
-class LinearClassifier(nn.Module):
-    """Linear layer to train on top of frozen features"""
-
-    def __init__(self, out_dim, use_n_blocks, use_avgpool, num_classes=1000):
-        super().__init__()
-        self.out_dim = out_dim
-        self.use_n_blocks = use_n_blocks
-        self.use_avgpool = use_avgpool
-        self.num_classes = num_classes
-        self.linear = nn.Linear(out_dim, num_classes)
-        self.linear.weight.data.normal_(mean=0.0, std=0.01)
-        self.linear.bias.data.zero_()
-
-    def forward(self, x_tokens_list):
-        output = torch.stack( # If 3D, take average of all slices.
-            [create_linear_input(o, self.use_n_blocks, self.use_avgpool) for o in x_tokens_list]
-            ).mean(dim=0)
-        return self.linear(output)
-
-
-class AllClassifiers(nn.Module):
-    def __init__(self, classifiers_dict):
-        super().__init__()
-        self.classifiers_dict = nn.ModuleDict()
-        self.classifiers_dict.update(classifiers_dict)
-
-    def forward(self, inputs):
-        return {k: v.forward(inputs) for k, v in self.classifiers_dict.items()}
-
-    def __len__(self):
-        return len(self.classifiers_dict)
-
-
-class LinearPostprocessor(nn.Module):
-    def __init__(self, linear_classifier, class_mapping=None):
-        super().__init__()
-        self.linear_classifier = linear_classifier
-        self.register_buffer("class_mapping", None if class_mapping is None else torch.LongTensor(class_mapping))
-
-    def forward(self, samples, targets):
-        preds = torch.sigmoid(self.linear_classifier(samples))
-        return {
-            "preds": preds[:, self.class_mapping] if self.class_mapping is not None else preds,
-            "target": targets,
-        }
-
-
 def scale_lr(learning_rates, batch_size):
     return learning_rates * (batch_size * distributed.get_global_size()) / 256.0
-
-
-def setup_linear_classifiers(sample_output, n_last_blocks_list, learning_rates, avgpools=[True, False], num_classes=14):
-    """
-    Sets up the multiple linear classifiers with different hyperparameters to test out the most optimal one 
-    """
-    linear_classifiers_dict = nn.ModuleDict()
-    optim_param_groups = []
-    for n in n_last_blocks_list:
-        for avgpool in avgpools:
-            for _lr in learning_rates:
-                # lr = scale_lr(_lr, batch_size)
-                lr = _lr
-                out_dim = create_linear_input(sample_output, use_n_blocks=n, use_avgpool=avgpool).shape[1]
-                linear_classifier = LinearClassifier(
-                    out_dim, use_n_blocks=n, use_avgpool=avgpool, num_classes=num_classes
-                )
-                linear_classifier = linear_classifier.cuda()
-                linear_classifiers_dict[
-                    f"linear:blocks={n}:avgpool={avgpool}:lr={lr:.10f}".replace(".", "_")
-                ] = linear_classifier
-                optim_param_groups.append({"params": linear_classifier.parameters(), "lr": lr})
-
-    linear_classifiers = AllClassifiers(linear_classifiers_dict)
-    if distributed.is_enabled():
-        linear_classifiers = nn.parallel.DistributedDataParallel(linear_classifiers)
-
-    return linear_classifiers, optim_param_groups
 
 
 @torch.no_grad()
@@ -282,7 +191,7 @@ def evaluate_linear_classifiers(
     num_classes = training_num_classes
     labels = list(data_loader.dataset.class_names)
     metric = build_metric(metric_type, num_classes=num_classes, labels=labels)
-    postprocessors = {k: LinearPostprocessor(v, None) for k, v in linear_classifiers.classifiers_dict.items()}
+    postprocessors = {k: LinearPostprocessor(v) for k, v in linear_classifiers.classifiers_dict.items()}
     metrics = {k: metric.clone() for k in linear_classifiers.classifiers_dict}
 
     _, results_dict_temp = evaluate(
@@ -343,7 +252,6 @@ def eval_linear(
     resume=True,
     classifier_fpath=None,
     is_multilabel=True,
-    is_3d = False,
 ):
     checkpointer = Checkpointer(linear_classifiers, output_dir, optimizer=optimizer, scheduler=scheduler)
     start_iter = checkpointer.resume_or_load(classifier_fpath or "", resume=resume).get("iteration", 0) + 1
@@ -364,7 +272,8 @@ def eval_linear(
         labels = labels.cuda(non_blocking=True)
 
         # forward pass
-        outputs = classifier_forward_pass(feature_model, linear_classifiers, data=data, is_3d=is_3d)
+        features = feature_model(data)
+        outputs = linear_classifiers(features)
         
         # calculate loss
         if is_multilabel:  
@@ -435,23 +344,6 @@ def eval_linear(
     return val_results_dict, feature_model, linear_classifiers, iteration
 
 
-def make_eval_data_loader(test_dataset_str, batch_size, num_workers, metric_type):
-    test_dataset = make_dataset(
-        dataset_str=test_dataset_str,
-        transform=make_classification_eval_transform(),
-    )
-    test_data_loader = make_data_loader(
-        dataset=test_dataset,
-        batch_size=batch_size,
-        num_workers=num_workers,
-        sampler_type=None,
-        drop_last=False,
-        shuffle=False,
-        persistent_workers=False,
-        collate_fn=None,
-    )
-    return test_data_loader
-
 def run_eval_linear(
     model,
     output_dir,
@@ -479,10 +371,6 @@ def run_eval_linear(
     if test_dataset_str == None:
         raise ValueError("Test dataset cannot be None")
     
-    n_last_blocks = max(n_last_blocks_list)
-    autocast_ctx = partial(torch.cuda.amp.autocast, enabled=True, dtype=autocast_dtype)
-    feature_model = ModelWithIntermediateLayers(model, n_last_blocks, autocast_ctx)
-
     train_transform = make_classification_train_transform()
     eval_transform = make_classification_eval_transform()
     train_dataset, val_dataset, test_dataset = make_datasets(train_dataset_str=train_dataset_str, val_dataset_str=val_dataset_str,
@@ -494,9 +382,12 @@ def run_eval_linear(
     is_3d = test_dataset.is_3d()
     collate_fn = None if not is_3d else collate_fn_3d
 
-    sample_input = train_dataset[0][0][0] if is_3d else train_dataset[0][0] 
-    sample_output = feature_model(sample_input.unsqueeze(0).cuda())
+    n_last_blocks = max(n_last_blocks_list)
+    autocast_ctx = partial(torch.cuda.amp.autocast, enabled=True, dtype=autocast_dtype)
+    feature_model = ModelWithIntermediateLayers(model, n_last_blocks, autocast_ctx, is_3d=is_3d)
 
+    sample_input = train_dataset[0][0][0] if is_3d else train_dataset[0][0] 
+    sample_output = feature_model.forward_(sample_input.unsqueeze(0).cuda())
 
     if epoch_length == None:
         epoch_length = math.ceil(train_dataset.get_length() / batch_size)
@@ -509,6 +400,7 @@ def run_eval_linear(
         learning_rates=learning_rates,
         avgpools=avgpools,
         num_classes=training_num_classes,
+        is_3d=is_3d
     )
 
     optimizer = torch.optim.SGD(optim_param_groups, momentum=0.9, weight_decay=0)
@@ -545,7 +437,6 @@ def run_eval_linear(
         resume=resume,
         classifier_fpath=classifier_fpath,
         is_multilabel=is_multilabel,
-        is_3d=is_3d
     )
 
     if val_dataset_str != None: # retrain model with validation set.
@@ -583,6 +474,7 @@ def run_eval_linear(
             learning_rates=learning_rate,
             avgpools=avgpool,
             num_classes=training_num_classes,
+            is_3d=is_3d
         )
 
         output_dir += os.sep + 'optimal'

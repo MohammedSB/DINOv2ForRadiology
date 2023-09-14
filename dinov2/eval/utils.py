@@ -37,20 +37,34 @@ class ModelWithNormalize(torch.nn.Module):
 
 
 class ModelWithIntermediateLayers(nn.Module):
-    def __init__(self, feature_model, n_last_blocks, autocast_ctx):
+    def __init__(self, feature_model, n_last_blocks, autocast_ctx, is_3d=True):
         super().__init__()
         self.feature_model = feature_model
         self.feature_model.eval()
         self.n_last_blocks = n_last_blocks
         self.autocast_ctx = autocast_ctx
+        self.is_3d = is_3d
 
-    def forward(self, images):
+    def forward_3d(self, images):
+        batch_features = [] 
+        for batch_scans in images: # calculate the features for every scan in all scans of the batch
+            scans = []
+            for scan in batch_scans:
+                if not is_zero_matrix(scan): scans.append(self.forward_(scan.unsqueeze(0)))
+            batch_features.append(scans)
+        return batch_features
+
+    def forward_(self, images):
         with torch.inference_mode():
             with self.autocast_ctx():
                 features = self.feature_model.get_intermediate_layers(
                     images, self.n_last_blocks, return_class_token=True
                 )
         return features
+    
+    def forward(self, images):
+        if self.is_3d: return self.forward_3d(images)
+        return [self.forward_(images)]
 
 
 @torch.inference_mode()
