@@ -96,27 +96,52 @@ def make_classification_eval_transform(
     ]
     return transforms.Compose(transforms_list)
 
-def make_segmentation_transform(
+def make_segmentation_train_transforms(
+    *,
+    resize_size: int = 448,
+    vflip_prob: float = 0.5,
+    rot_deg: float = 45,
+    interpolation=transforms.InterpolationMode.BICUBIC,
+    mean: Sequence[float] = IMAGENET_DEFAULT_MEAN,
+    std: Sequence[float] = IMAGENET_DEFAULT_STD,
+) -> transforms.Compose:
+    train_transforms_list = [
+        transforms.Resize((resize_size, resize_size), interpolation=interpolation)
+        ]
+    target_transforms_list = [
+        transforms.Resize((resize_size, resize_size), interpolation=interpolation)
+        ]
+    if vflip_prob > 0:
+        train_transforms_list.append(transforms.RandomVerticalFlip(vflip_prob))
+        target_transforms_list.append(transforms.RandomVerticalFlip(vflip_prob))
+    if rot_deg > 0:
+        train_transforms_list.append(transforms.RandomRotation(rot_deg))
+        target_transforms_list.append(transforms.RandomRotation(rot_deg))
+
+    train_transforms_list.extend([    
+        MaybeToTensor(),
+        make_normalize_transform(mean=mean, std=std),
+    ])
+    target_transforms_list.append(MaybeToTensor())
+
+    return (transforms.Compose(train_transforms_list),
+            transforms.Compose(target_transforms_list))
+
+def make_segmentation_eval_transforms(
     *,
     resize_size: int = 448,
     interpolation=transforms.InterpolationMode.BICUBIC,
     mean: Sequence[float] = IMAGENET_DEFAULT_MEAN,
     std: Sequence[float] = IMAGENET_DEFAULT_STD,
 ) -> transforms.Compose:
-    transforms_list = [
+    train_transforms_list = [
         transforms.Resize((resize_size, resize_size), interpolation=interpolation),
         MaybeToTensor(),
-        make_normalize_transform(mean=mean, std=std),
+        make_normalize_transform(mean=mean, std=std)
     ]
-    return transforms.Compose(transforms_list)
-
-def make_segmentation_target_transform(
-    *,
-    resize_size: int = 448,
-    interpolation=transforms.InterpolationMode.BICUBIC
-) -> transforms.Compose:
-    transforms_list = [
+    target_transform_list = [
         transforms.Resize((resize_size, resize_size), interpolation=interpolation),
         MaybeToTensor(),
-    ]
-    return transforms.Compose(transforms_list)
+    ] 
+    return (transforms.Compose(train_transforms_list),
+            transforms.Compose(target_transform_list))

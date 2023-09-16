@@ -98,9 +98,15 @@ class MC(MedicalVisionDataset):
         image = self.get_image_data(index)
         target = self.get_target(index)
 
-        if self.transforms is not None:
-            image, target = self.transforms(image, target)
+        seed = np.random.randint(2147483647) # make a seed with numpy generator 
+        if self.transform is not None:
+            np.random.seed(seed), torch.manual_seed(seed) 
+            image = self.transform(image)
 
+        if self.target_transform is not None:
+            np.random.seed(seed), torch.manual_seed(seed) 
+            target = self.target_transform(target)
+            
         # Remove channel dim in target
         target = target.squeeze()
 

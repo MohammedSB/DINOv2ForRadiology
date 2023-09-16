@@ -320,17 +320,17 @@ def apply_method_to_nested_values(d, method_name, nested_types=(dict)):
     return result
 
 def make_datasets(train_dataset_str, test_dataset_str, val_dataset_str=None,
-                  train_transform=None, eval_transform=None, target_transform=None):
+                  train_transform=None, eval_transform=None, train_target_transform=None, eval_target_transform=None):
     train_dataset = make_dataset(
         dataset_str=train_dataset_str,
         transform=train_transform,
-        target_transform=target_transform
+        target_transform=train_target_transform
     )
     if val_dataset_str == None:
         val_dataset_ = make_dataset(
             dataset_str=train_dataset_str.replace("TRAIN", "VAL"),
             transform=train_transform,
-            target_transform=target_transform
+            target_transform=train_target_transform
         )
         train_dataset = torch.utils.data.ConcatDataset([train_dataset, val_dataset_])
         val_dataset = None
@@ -339,12 +339,12 @@ def make_datasets(train_dataset_str, test_dataset_str, val_dataset_str=None,
         val_dataset = make_dataset(
             dataset_str=val_dataset_str,
             transform=eval_transform,
-            target_transform=target_transform
+            target_transform=eval_target_transform
         )
     test_dataset = make_dataset(
         dataset_str=test_dataset_str,
         transform=eval_transform,
-        target_transform=target_transform
+        target_transform=eval_target_transform
     )
     return train_dataset, val_dataset, test_dataset
 

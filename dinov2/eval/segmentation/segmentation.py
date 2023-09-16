@@ -22,7 +22,7 @@ from fvcore.common.checkpoint import Checkpointer, PeriodicCheckpointer
 
 from dinov2.data import SamplerType, make_data_loader, make_dataset
 from dinov2.data.transforms import (make_classification_eval_transform, make_classification_train_transform,
-                                    make_segmentation_transform, make_segmentation_target_transform)
+                                    make_segmentation_train_transforms, make_segmentation_eval_transforms)
 import dinov2.distributed as distributed
 from dinov2.eval.metrics import MetricType, build_metric
 from dinov2.eval.setup import get_args_parser as get_setup_args_parser
@@ -358,11 +358,12 @@ def run_eval_segmentation(
     feature_model = TransformerEncoder(model, autocast_ctx=autocast_ctx)
 
     # make datasets
-    image_transform = make_segmentation_transform()
-    target_transform = make_segmentation_target_transform()
+    train_image_transform, train_target_transform = make_segmentation_train_transforms()
+    eval_image_transform, eval_target_transform  = make_classification_eval_transform()
     train_dataset, val_dataset, test_dataset = make_datasets(train_dataset_str=train_dataset_str, val_dataset_str=val_dataset_str,
-                                                            test_dataset_str=test_dataset_str, train_transform=image_transform,
-                                                            eval_transform=image_transform, target_transform=target_transform)
+                                                            test_dataset_str=test_dataset_str, train_transform=train_image_transform,
+                                                            eval_transform=eval_image_transform, train_target_transform=train_target_transform,
+                                                            eval_target_transform=eval_target_transform)
 
     training_num_classes = test_dataset.get_num_classes()
     decoders, optim_param_groups = setup_decoders(

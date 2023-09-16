@@ -85,7 +85,7 @@ class SARSCoV2CT(MedicalVisionDataset):
         return scans
     
     def get_target(self, index: int) -> int:
-        return int(int(self.images[index]) < 79)
+        return int(int(self.images[index]) <= 79) # IDs 0-79 are positive
     
     def __len__(self) -> int:
         return len(self.images)
@@ -94,8 +94,10 @@ class SARSCoV2CT(MedicalVisionDataset):
         images = self.get_image_data(index)
         target = self.get_target(index)
 
+        seed = np.random.randint(2147483647) # make a seed with numpy generator 
         if self.transforms is not None:
             for i in range(len(images)):
+                np.random.seed(seed), torch.manual_seed(seed) 
                 images[i], target = self.transforms(images[i], target)
             images = torch.stack(images, dim=0)
 
