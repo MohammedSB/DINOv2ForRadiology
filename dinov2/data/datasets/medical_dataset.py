@@ -24,6 +24,13 @@ class MedicalVisionDataset(VisionDataset):
         
         self.images = os.listdir(self._split_dir)
 
+    @property
+    def split(self):
+        return self._split
+    
+    def get_length(self) -> int:
+        return self.__len__()
+
     def _check_size(self):
         num_of_images = len(os.listdir(self._split_dir))
         logger.info(f"{self._split.length - num_of_images} scans are missing from {self._split.value.upper()} set")

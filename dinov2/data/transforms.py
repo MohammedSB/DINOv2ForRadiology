@@ -23,7 +23,23 @@ class GaussianBlur(transforms.RandomApply):
         super().__init__(transforms=[transform], p=keep_p)
 
 
-class MaybeToTensor(transforms.ToTensor):
+class RescaleImage:
+    def __call__(self, image):
+        if isinstance(image, np.ndarray):
+            # Convert to tensor
+            image = torch.from_numpy(image)
+        elif torch.is_tensor(image):
+            pass
+        else:
+            raise TypeError("Input should be of type numpy.ndarray or torch.Tensor")
+
+        # Rescale the tensor to [0, 1]
+        min_val = image.min()
+        max_val = image.max()
+        return (image - min_val) / (max_val - min_val)
+
+
+class MaybeToTensor(transforms.PILToTensor):
     """
     Convert a ``PIL Image`` or ``numpy.ndarray`` to tensor, or keep as is if already a tensor.
     """
@@ -40,6 +56,7 @@ class MaybeToTensor(transforms.ToTensor):
         if isinstance(pic, np.ndarray):
             return torch.from_numpy(pic)
         return super().__call__(pic)
+
 
 
 # Use timm's names
@@ -72,6 +89,7 @@ def make_classification_train_transform(
     transforms_list.extend(
         [
             MaybeToTensor(),
+            RescaleImage(),
             make_normalize_transform(mean=mean, std=std),
         ]
     )
@@ -92,6 +110,7 @@ def make_classification_eval_transform(
         transforms.Resize((resize_size, resize_size), interpolation=interpolation),
         transforms.CenterCrop(crop_size),
         MaybeToTensor(),
+        RescaleImage(),
         make_normalize_transform(mean=mean, std=std),
     ]
     return transforms.Compose(transforms_list)
@@ -120,6 +139,7 @@ def make_segmentation_train_transforms(
 
     train_transforms_list.extend([    
         MaybeToTensor(),
+        RescaleImage(),
         make_normalize_transform(mean=mean, std=std),
     ])
     target_transforms_list.append(MaybeToTensor())
@@ -137,6 +157,7 @@ def make_segmentation_eval_transforms(
     train_transforms_list = [
         transforms.Resize((resize_size, resize_size), interpolation=interpolation),
         MaybeToTensor(),
+        RescaleImage(),
         make_normalize_transform(mean=mean, std=std)
     ]
     target_transform_list = [

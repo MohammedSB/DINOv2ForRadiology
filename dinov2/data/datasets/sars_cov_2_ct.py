@@ -48,7 +48,7 @@ class SARSCoV2CT(MedicalVisionDataset):
             "Negative",
             "Positive"
         ]
-        
+
     @property
     def split(self) -> "SARSCoV2CT.Split":
         return self._split

@@ -17,3 +17,4 @@ scikit-image
 pydicom
 torchxrayvision
 matplotlib
+nibabel

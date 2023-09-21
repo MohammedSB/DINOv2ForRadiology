@@ -404,6 +404,9 @@ def run_eval_linear(
         is_3d=is_3d
     )
 
+    fine_tune = False
+    if fine_tune:
+        optim_param_groups.append({'params': feature_model.parameters(), 'lr':3e-4})
     optimizer = torch.optim.SGD(optim_param_groups, momentum=0.9, weight_decay=0)
     if val_epochs is not None:
         max_iter = epoch_length * val_epochs
