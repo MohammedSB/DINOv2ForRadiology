@@ -181,14 +181,14 @@ def evaluate_linear_classifiers(
     data_loader,
     metric_type,
     metrics_file_path,
-    training_num_classes,
+    num_of_classes,
     iteration,
     prefixstring="",
     best_classifier_on_val=None,
 ):
     logger.info("running validation !")
 
-    num_classes = training_num_classes
+    num_classes = num_of_classes
     labels = list(data_loader.dataset.class_names)
     metric = build_metric(metric_type, num_classes=num_classes, labels=labels)
     postprocessors = {k: LinearPostprocessor(v) for k, v in linear_classifiers.classifiers_dict.items()}
@@ -248,7 +248,7 @@ def eval_linear(
     running_checkpoint_period,  # Period to update main checkpoint file
     eval_period,
     metric_type,
-    training_num_classes,
+    num_of_classes,
     resume=True,
     classifier_fpath=None,
     is_multilabel=True,
@@ -288,7 +288,7 @@ def eval_linear(
                         per_class_loss += nn.BCEWithLogitsLoss()(class_.float(), batch_labels[index].float())
                     losses[f"loss_{k}"] = per_class_loss / len(batch_labels) # Take average of all binary classification losses        
         else:
-            loss_fn = nn.BCEWithLogitsLoss() if training_num_classes == 1 else nn.CrossEntropyLoss()
+            loss_fn = nn.BCEWithLogitsLoss() if num_of_classes == 1 else nn.CrossEntropyLoss()
             losses = {f"loss_{k}": loss_fn(v, labels.float()) for k, v in outputs.items()}        
 
         loss = sum(losses.values())
@@ -325,7 +325,7 @@ def eval_linear(
                 metrics_file_path=metrics_file_path,
                 prefixstring=f"ITER: {iteration} {val_data_loader.dataset.split.value}",
                 metric_type=metric_type,
-                training_num_classes=training_num_classes,
+                num_of_classes=num_of_classes,
                 iteration=iteration,
             )
             torch.cuda.synchronize()
@@ -339,7 +339,7 @@ def eval_linear(
         metrics_file_path=metrics_file_path,
         prefixstring=f"ITER: {iteration} {val_data_loader.dataset.split.value}",
         metric_type=metric_type,
-        training_num_classes=training_num_classes,
+        num_of_classes=num_of_classes,
         iteration=iteration,
     )
     return val_results_dict, feature_model, linear_classifiers, iteration
@@ -377,8 +377,8 @@ def run_eval_linear(
     train_dataset, val_dataset, test_dataset = make_datasets(train_dataset_str=train_dataset_str, val_dataset_str=val_dataset_str,
                                                         test_dataset_str=test_dataset_str, train_transform=train_transform,
                                                         eval_transform=eval_transform)
-    training_num_classes = test_dataset.get_num_classes()
-    training_num_classes = 1 if training_num_classes == 2 else training_num_classes
+    num_of_classes = test_dataset.get_num_classes()
+    num_of_classes = 1 if num_of_classes == 2 else num_of_classes
     is_multilabel = test_dataset.is_multilabel()
     is_3d = test_dataset.is_3d()
     collate_fn = None if not is_3d else collate_fn_3d
@@ -400,7 +400,7 @@ def run_eval_linear(
         n_last_blocks_list=n_last_blocks_list,
         learning_rates=learning_rates,
         avgpools=avgpools,
-        num_classes=training_num_classes,
+        num_classes=num_of_classes,
         is_3d=is_3d
     )
 
@@ -437,7 +437,7 @@ def run_eval_linear(
         running_checkpoint_period=epoch_length,
         eval_period=eval_period_epochs_,
         metric_type=val_metric_type,
-        training_num_classes=training_num_classes,
+        num_of_classes=num_of_classes,
         resume=resume,
         classifier_fpath=classifier_fpath,
         is_multilabel=is_multilabel,
@@ -478,7 +478,7 @@ def run_eval_linear(
             n_last_blocks_list=block,
             learning_rates=learning_rate,
             avgpools=avgpool,
-            num_classes=training_num_classes,
+            num_classes=num_of_classes,
             is_3d=is_3d
         )
 
@@ -504,7 +504,7 @@ def run_eval_linear(
             running_checkpoint_period=epoch_length,
             eval_period=eval_period_epochs_,
             metric_type=val_metric_type,
-            training_num_classes=training_num_classes,
+            num_of_classes=num_of_classes,
             resume=resume,
             classifier_fpath=classifier_fpath,
             is_multilabel=is_multilabel,

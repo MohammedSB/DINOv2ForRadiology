@@ -21,7 +21,7 @@ from dinov2.data.transforms import make_segmentation_transform, make_segmentatio
 from dinov2.eval.metrics import MetricAveraging, build_metric, build_segmentation_metrics
 from dinov2.eval.setup import setup_and_build_model, get_args_parser as get_setup_args_parser
 from dinov2.logging import MetricLogger
-from dinov2.eval.segmentation.utils import setup_decoders, TransformerEncoder, LinearDecoder
+from dinov2.eval.segmentation.utils import setup_decoders, DINOV2Encoder, LinearDecoder
 
 def get_args_parser(
     description: Optional[str] = None,
@@ -112,7 +112,7 @@ def run_qualtitave_result_generation(
     checkpointer.resume_or_load(head_path, resume=True)
 
     autocast_ctx = partial(torch.cuda.amp.autocast, enabled=True, dtype=autocast_dtype)
-    feature_model = TransformerEncoder(model, autocast_ctx=autocast_ctx)
+    feature_model = DINOV2Encoder(model, autocast_ctx=autocast_ctx)
 
     decoder = list(decoders.module.decoders_dict.values())[0]
 

@@ -10,3 +10,4 @@ from .nih_chest_xray import NIHChestXray
 from .mc import MC
 from .shenzhen import Shenzhen
 from .sars_cov_2_ct import SARSCoV2CT
+from .btcv import BTCV

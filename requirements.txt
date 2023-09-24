@@ -18,3 +18,4 @@ pydicom
 torchxrayvision
 matplotlib
 nibabel
+torchio

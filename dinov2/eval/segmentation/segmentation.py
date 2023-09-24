@@ -28,8 +28,8 @@ from dinov2.eval.metrics import MetricType, build_metric
 from dinov2.eval.setup import get_args_parser as get_setup_args_parser
 from dinov2.eval.setup import setup_and_build_model
 from dinov2.eval.utils import (extract_hyperparameters_from_model, ModelWithIntermediateLayers, evaluate,
-                                apply_method_to_nested_values, make_datasets, make_data_loaders)
-from dinov2.eval.segmentation.utils import (setup_decoders, LinearPostprocessor, TransformerEncoder)
+                                apply_method_to_nested_values, make_datasets, make_data_loaders, collate_fn_3d)
+from dinov2.eval.segmentation.utils import (setup_decoders, LinearPostprocessor, DINOV2Encoder)
 from dinov2.logging import MetricLogger
 
 
@@ -151,7 +151,7 @@ def get_args_parser(
         epoch_length=None,
         save_checkpoint_frequency=5,
         eval_period_epochs=5,
-        learning_rates=[1e-6, 2e-6, 5e-6, 1e-5, 2e-5, 5e-5, 1e-4, 2e-4, 5e-4, 1e-3, 2e-3, 5e-3, 1e-2, 5e-2, 1e-1],
+        learning_rates=[1e-4, 5e-4, 1e-3, 5e-3, 1e-2, 5e-2, 1e-1],
         val_metric_type=MetricType.MULTILABEL_AUROC,
         segmentor_fpath=None,
         decoder_type="linear"
@@ -173,17 +173,16 @@ def evaluate_segmentors(
     data_loader,
     metric_type,
     metrics_file_path,
-    training_num_classes,
+    num_of_classes,
     iteration,
     prefixstring="",
     best_segmentor_on_val=None,
 ):
     logger.info("running validation !")
 
-    num_classes = training_num_classes
     labels = list(data_loader.dataset.class_names)
-    metric = build_metric(metric_type, num_classes=num_classes, labels=labels)
-    postprocessors = {k: LinearPostprocessor(v, None) for k, v in decoders.decoders_dict.items()}
+    metric = build_metric(metric_type, num_classes=num_of_classes, labels=labels)
+    postprocessors = {k: LinearPostprocessor(v) for k, v in decoders.decoders_dict.items()}
     metrics = {k: metric.clone() for k in decoders.decoders_dict}
 
     _, results_dict_temp = evaluate(
@@ -239,9 +238,10 @@ def eval_decoders(
     running_checkpoint_period,  # Period to update main checkpoint file
     eval_period,
     metric_type,
-    training_num_classes,
+    num_of_classes,
     resume=True,
     segmentor_fpath=None,
+    is_3d=False
 ):
     checkpointer = Checkpointer(decoders, output_dir, optimizer=optimizer, scheduler=scheduler)
     start_iter = checkpointer.resume_or_load(segmentor_fpath or "", resume=resume).get("iteration", 0) + 1
@@ -259,22 +259,18 @@ def eval_decoders(
         max_iter,
         start_iter,
     ):
-        
         data = data.cuda(non_blocking=True)
-        labels = labels.cuda(non_blocking=True)
 
         features = feature_model(data)
         outputs = decoders(features)
 
-        # Upsample (interpolate) output/logit map if linear decoder. 
-        if decoders.module.decoder_type == "linear":
-            outputs = {
-                m: torch.nn.functional.interpolate(output, size=labels.shape[1], mode="bilinear", align_corners=False)
-                for m, output in outputs.items()
-                }
+        if is_3d:
+            output = torch.cat(output, dim=0)
+            labels = torch.cat(labels, dim=0)
 
+        labels = labels.cuda(non_blocking=True).type(torch.int64)
         losses = {f"loss_{k}": nn.CrossEntropyLoss()(v, labels) for k, v in outputs.items()}
-
+        
         loss = sum(losses.values())
 
         # compute the gradients
@@ -309,7 +305,7 @@ def eval_decoders(
                 metrics_file_path=metrics_file_path,
                 prefixstring=f"ITER: {iteration}",
                 metric_type=metric_type,
-                training_num_classes=training_num_classes,
+                num_of_classes=num_of_classes,
                 iteration=iteration,
             )
             torch.cuda.synchronize()
@@ -322,7 +318,7 @@ def eval_decoders(
         data_loader=val_data_loader,
         metrics_file_path=metrics_file_path,
         metric_type=metric_type,
-        training_num_classes=training_num_classes,
+        num_of_classes=num_of_classes,
         iteration=iteration,
     )
     return val_results_dict, feature_model, decoders, iteration
@@ -353,30 +349,34 @@ def run_eval_segmentation(
     if test_dataset_str == None:
         raise ValueError("Test dataset cannot be None")
     
-    embed_dim = model.embed_dim
-    autocast_ctx = partial(torch.cuda.amp.autocast, enabled=True, dtype=autocast_dtype)
-    feature_model = TransformerEncoder(model, autocast_ctx=autocast_ctx)
-
     # make datasets
     train_image_transform, train_target_transform = make_segmentation_train_transforms()
-    eval_image_transform, eval_target_transform  = make_classification_eval_transform()
+    eval_image_transform, eval_target_transform  = make_segmentation_eval_transforms()
     train_dataset, val_dataset, test_dataset = make_datasets(train_dataset_str=train_dataset_str, val_dataset_str=val_dataset_str,
                                                             test_dataset_str=test_dataset_str, train_transform=train_image_transform,
                                                             eval_transform=eval_image_transform, train_target_transform=train_target_transform,
                                                             eval_target_transform=eval_target_transform)
-
-    training_num_classes = test_dataset.get_num_classes()
+    embed_dim = model.embed_dim
+    is_3d = test_dataset.is_3d()
+    collate_fn = None if not is_3d else collate_fn_3d
+    num_of_classes = test_dataset.get_num_classes()
     decoders, optim_param_groups = setup_decoders(
         embed_dim,
         learning_rates,
-        training_num_classes,
-        decoder_type
+        num_of_classes,
+        decoder_type,
+        is_3d
     )
 
     if epoch_length == None:
         epoch_length = math.ceil(len(train_dataset) / batch_size)
     eval_period_epochs_ = eval_period_epochs * epoch_length
     checkpoint_period = save_checkpoint_frequency * epoch_length
+
+    # Define feature model
+    autocast_ctx = partial(torch.cuda.amp.autocast, enabled=True, dtype=autocast_dtype)
+    feature_model = DINOV2Encoder(model, autocast_ctx=autocast_ctx, is_3d=is_3d)
+
 
     # Define checkpoint, optimizer, and scheduler
     optimizer = torch.optim.SGD(optim_param_groups, momentum=0.9, weight_decay=0)
@@ -389,7 +389,8 @@ def run_eval_segmentation(
     sampler_type = SamplerType.INFINITE
     train_data_loader, val_data_loader, test_data_loader = make_data_loaders(train_dataset=train_dataset, test_dataset=test_dataset,
                                                                             val_dataset=val_dataset, sampler_type=sampler_type, seed=seed,
-                                                                            start_iter=start_iter, batch_size=batch_size, num_workers=num_workers)
+                                                                            start_iter=start_iter, batch_size=batch_size, num_workers=num_workers,
+                                                                            collate_fn=collate_fn)
 
     metrics_file_path = os.path.join(output_dir, "results_eval_linear.json")
     val_results_dict, feature_model, decoders, iteration = eval_decoders(
@@ -406,9 +407,10 @@ def run_eval_segmentation(
         running_checkpoint_period=epoch_length,
         eval_period=eval_period_epochs_,
         metric_type=val_metric_type,
-        training_num_classes=training_num_classes,
+        num_of_classes=num_of_classes,
         resume=resume,
         segmentor_fpath=segmentor_fpath,
+        is_3d=is_3d
     )
     if val_dataset_str != None: # retrain model with validation set.
 
@@ -416,8 +418,8 @@ def run_eval_segmentation(
 
         val_dataset = make_dataset(
             dataset_str=val_dataset_str,
-            transform=image_transform,
-            target_transform=target_transform
+            transform=train_image_transform,
+            target_transform=train_target_transform
         )
         train_dataset = torch.utils.data.ConcatDataset([train_dataset, val_dataset])
 
@@ -443,7 +445,7 @@ def run_eval_segmentation(
         decoders, optim_param_groups = setup_decoders(
             embed_dim,
             learning_rate,
-            training_num_classes,
+            num_of_classes,
             decoder_type
         )
 
@@ -469,9 +471,10 @@ def run_eval_segmentation(
             running_checkpoint_period=epoch_length,
             eval_period=eval_period_epochs_,
             metric_type=val_metric_type,
-            training_num_classes=training_num_classes,
+            num_of_classes=num_of_classes,
             resume=resume,
             segmentor_fpath=segmentor_fpath,
+            is_3d=is_3d
         )
 
     results_dict = {}

@@ -87,8 +87,10 @@ def evaluate(
     header = "Test:"
 
     for samples, targets, *_ in metric_logger.log_every(data_loader, 10, header):
+        
         outputs = model(samples.to(device))
-        targets = targets.to(device)
+        if isinstance(outputs, torch.Tensor):
+            targets = targets.to(device)
 
         if criterion is not None:
             loss = criterion(outputs, targets)
@@ -407,18 +409,19 @@ def extract_hyperparameters_from_model(segmentor):
 def collate_fn_3d(batch):
     # batch is a list of tuples where each tuple is (video, label)
     videos, labels = zip(*batch)
+    hw_size = videos[0].size()[-1]
 
     # Get the length of the longest video
     max_len = max(video.size(0) for video in videos)
 
     # Create a tensor to hold the padded videos
-    padded_videos = torch.zeros(len(videos), max_len, 3, 224, 224)
+    padded_videos = torch.zeros(len(videos), max_len, 3, hw_size, hw_size)
 
     # Pad each video
     for i, video in enumerate(videos):
         padded_videos[i, :video.size(0)] = video
 
-    return padded_videos, torch.tensor(labels)
+    return padded_videos, labels
 
 def is_zero_matrix(matrix):
     return torch.allclose(matrix, torch.zeros_like(matrix))
