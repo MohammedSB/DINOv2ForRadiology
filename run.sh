@@ -54,15 +54,15 @@ PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/segmentati
     --gpus 1 \
     --nodes 1 \
     --batch-size 2 \
-    --epochs 5 \
-    --eval-period-epochs 5 \
+    --epochs 2 \
+    --eval-period-epochs 1 \
+    --learning-rates 1e-2 \
     --val-metric-type segmentation_metrics \
     --config-file dinov2/configs/eval/vits14_pretrain.yaml \
     --pretrained-weights models/dinov2_vits14_pretrain.pth \
     --output-dir results/NIH/dinov2_vits14/knn \
-    --train-dataset BTCV:split=TRAIN:root=/mnt/z/data/Abdomen/RawData \
-    --val-dataset BTCV:split=VAL:root=/mnt/z/data/Abdomen/RawData \
-    --test-dataset BTCV:split=TEST:root=/mnt/z/data/Abdomen/RawData
+    --train-dataset BTCV:split=TRAIN:root=/mnt/z/data/BTCV \
+    --test-dataset BTCV:split=VAL:root=/mnt/z/data/BTCV
 
 # PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/mlknn.py \
 #     --gpus 1 \

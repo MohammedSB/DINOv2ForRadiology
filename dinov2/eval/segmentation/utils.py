@@ -1,3 +1,7 @@
+import os
+import numpy as np
+import nibabel as nib
+
 import torch
 import torch.nn as nn
 
@@ -47,31 +51,32 @@ class LinearDecoder(torch.nn.Module):
         self.decoder.bias.data.zero_()
         self.is_3d = is_3d
 
-    def forward_3d(self, embeddings, vectorized=False):
+    def forward_3d(self, embeddings, up_size, vectorized=False):
         batch_outputs = []
         for batch_embeddings in embeddings:
             if vectorized:
-                batch_outputs.append(self.forward_(torch.stack(batch_embeddings).squeeze()))
+                batch_outputs.append(self.forward_(torch.stack(batch_embeddings, up_size).squeeze()))
             else:
                 batch_outputs.append(
-                    torch.stack([self.forward_(slice_embedding) for slice_embedding in batch_embeddings]).squeeze()
+                    torch.stack([self.forward_(slice_embedding, up_size) for slice_embedding in batch_embeddings]).squeeze()
                     )
         return batch_outputs
 
-    def forward_(self, embeddings):
+    def forward_(self, embeddings, up_size):
         embeddings = embeddings.reshape(-1, self.height, self.width, self.in_channels)
         embeddings = embeddings.permute(0,3,1,2)
 
-        # Upsample (interpolate) output/logit map. 
         output = self.decoder(embeddings)
-        output = torch.nn.functional.interpolate(output, size=448, mode="bilinear", align_corners=False)
+        
+        # Upsample (interpolate) output/logit map.
+        output = torch.nn.functional.interpolate(output, size=up_size, mode="bilinear", align_corners=False)
 
         return output
     
-    def forward(self, embeddings):
+    def forward(self, embeddings, up_size=448):
         if self.is_3d:
-            return self.forward_3d(embeddings)
-        return self.forward_(embeddings)
+            return self.forward_3d(embeddings, up_size)
+        return self.forward_(embeddings, up_size)
     
 class LinearPostprocessor(nn.Module):
     def __init__(self, decoder):
@@ -127,3 +132,27 @@ def setup_decoders(embed_dim, learning_rates, num_classes=14, decoder_type="line
         decoders = nn.parallel.DistributedDataParallel(decoders)
 
     return decoders, optim_param_groups
+
+def save_test_results(feature_model, decoder, dataset, output_dir):
+    test_results_path = output_dir + os.sep + "test_results" 
+    os.makedirs(test_results_path, exist_ok=True)
+    for i, (img, _) in enumerate(dataset):
+
+        img_name = dataset.images[i]
+        _, affine_matrix = dataset.get_image_data(i, return_affine_matrix=True)
+
+        img = img.cuda(non_blocking=True) 
+
+        features = feature_model(img.unsqueeze(0))
+        output = decoder(features, up_size=512)[0]
+        output = output.argmax(dim=1)
+
+        nifti_img = nib.Nifti1Image(output
+                                    .cpu()
+                                    .numpy()
+                                    .astype(np.uint8)
+                                    .transpose(1, 2, 0), affine_matrix)    
+        file_output_dir = test_results_path + os.sep + img_name + ".gz"
+
+        # Save the NIfTI image
+        nib.save(nifti_img, file_output_dir)

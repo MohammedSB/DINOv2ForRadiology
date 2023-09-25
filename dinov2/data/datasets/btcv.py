@@ -81,14 +81,18 @@ class BTCV(MedicalVisionDataset):
     def is_3d(self) -> bool:
         return True
 
-    def get_image_data(self, index: int) -> np.ndarray:
+    def get_image_data(self, index: int, return_affine_matrix=False) -> np.ndarray:
         image_folder_path = self._image_path + os.sep + self.images[index]
         image_path = image_folder_path + os.sep + os.listdir(image_folder_path)[0]  
 
-        image = nib.load(image_path).get_fdata()
+        nifti_image = nib.load(image_path)
+        image = nifti_image.get_fdata()
         image = np.stack((image,)*3, axis=0)
         image = torch.from_numpy(image).permute(3, 0, 1, 2).float()
 
+        if return_affine_matrix:
+            affine = nifti_image.affine
+            return image, affine
         return image
     
     def get_target(self, index: int) -> Tuple[np.ndarray, torch.Tensor, None]:
@@ -109,20 +113,23 @@ class BTCV(MedicalVisionDataset):
 
     def __getitem__(self, index: int):
 
-        image = self.get_image_data(index)[:2]
-        target = self.get_target(index)[:2]
+        image = self.get_image_data(index)
+        target = self.get_target(index)
 
         seed = np.random.randint(2147483647) # make a seed with numpy generator 
         if self.transform is not None:
-            np.random.seed(seed), torch.manual_seed(seed) 
-            image = self.transform(image)
+            transformed_image = []
+            for i in range(len(image)):
+                np.random.seed(seed), torch.manual_seed(seed) 
+                transformed_image.append(self.transform(image[i]))
+            image = torch.stack(transformed_image, dim=0)
 
-        if self.target_transform is not None:
-            np.random.seed(seed), torch.manual_seed(seed) 
-            target = self.target_transform(target)
-
-        # Remove channel dim in target
-        target = target.squeeze()
+        if self.target_transform is not None and target is not None:
+            transformed_target = []
+            for i in range(len(target)):
+                np.random.seed(seed), torch.manual_seed(seed) 
+                transformed_target.append(self.target_transform(target[i]))
+            target = torch.stack(transformed_target, dim=0).squeeze()
 
         return image, target
 

@@ -44,9 +44,6 @@ class NIHChestXray(MedicalVisionDataset):
     ) -> None:
         super().__init__(split, root, transforms, transform, target_transform)
         
-        # Define paths for the data
-        self.curr_imgs = os.listdir(root) #TODO: Remove
-
         # Set the labels dataframe
         labels_path = self._root + os.sep + "labels"
         self.labels = pd.read_csv(labels_path + ".csv")
@@ -81,14 +78,6 @@ class NIHChestXray(MedicalVisionDataset):
             raise ValueError(f'Unsupported split "{self.split}"')
 
         self.labels = pd.merge(self.labels, subset, how="inner", on=["Image Index"])
-
-        #TODO : remove
-        # to_add = []
-        # for i in self.labels.index:
-        #     if self.labels.iloc[i]["Image Index"] in self.curr_imgs:
-        #         to_add.append(i)
-
-        # self.labels = self.labels.iloc[to_add]
         self._clean_labels()
 
     @property

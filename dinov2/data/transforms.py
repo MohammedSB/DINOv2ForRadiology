@@ -22,6 +22,7 @@ class GaussianBlur(transforms.RandomApply):
         transform = transforms.GaussianBlur(kernel_size=9, sigma=(radius_min, radius_max))
         super().__init__(transforms=[transform], p=keep_p)
 
+    
 
 class RescaleImage:
     def __call__(self, image):
@@ -34,10 +35,9 @@ class RescaleImage:
             raise TypeError("Input should be of type numpy.ndarray or torch.Tensor")
 
         # Rescale the tensor to [0, 1]
-        min_val = image.min()
-        max_val = image.max()
+        min_val = image.reshape(image.shape[0], -1).min(dim=1)[0].reshape(-1, 1, 1)
+        max_val = image.reshape(image.shape[0], -1).max(dim=1)[0].reshape(-1, 1, 1)
         return (image - min_val) / (max_val - min_val)
-
 
 class MaybeToTensor(transforms.PILToTensor):
     """
@@ -54,9 +54,9 @@ class MaybeToTensor(transforms.PILToTensor):
         if isinstance(pic, torch.Tensor):
             return pic
         if isinstance(pic, np.ndarray):
-            return torch.from_numpy(pic)
+            pic = torch.from_numpy(pic)
+            return pic.permute(2, 0, 1) 
         return super().__call__(pic)
-
 
 
 # Use timm's names

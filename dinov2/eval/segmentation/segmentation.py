@@ -29,7 +29,7 @@ from dinov2.eval.setup import get_args_parser as get_setup_args_parser
 from dinov2.eval.setup import setup_and_build_model
 from dinov2.eval.utils import (extract_hyperparameters_from_model, ModelWithIntermediateLayers, evaluate,
                                 apply_method_to_nested_values, make_datasets, make_data_loaders, collate_fn_3d)
-from dinov2.eval.segmentation.utils import (setup_decoders, LinearPostprocessor, DINOV2Encoder)
+from dinov2.eval.segmentation.utils import (setup_decoders, LinearPostprocessor, DINOV2Encoder, save_test_results)
 from dinov2.logging import MetricLogger
 
 
@@ -265,7 +265,7 @@ def eval_decoders(
         outputs = decoders(features)
 
         if is_3d:
-            output = torch.cat(output, dim=0)
+            outputs = {m: torch.cat(output, dim=0) for m, output in outputs.items()}
             labels = torch.cat(labels, dim=0)
 
         labels = labels.cuda(non_blocking=True).type(torch.int64)
@@ -412,6 +412,7 @@ def run_eval_segmentation(
         segmentor_fpath=segmentor_fpath,
         is_3d=is_3d
     )
+
     if val_dataset_str != None: # retrain model with validation set.
 
         start_iter = 1
@@ -480,6 +481,13 @@ def run_eval_segmentation(
     results_dict = {}
     results_dict["best_segmentor"] = val_results_dict["best_segmentor"]
     logger.info("Test Results Dict " + str(results_dict))
+
+    test_dataset_name = test_dataset_str.split(":")[0]
+    if test_dataset_name == "BTCV":
+        save_test_results(feature_model=feature_model, 
+                          decoder=decoders.module.decoders_dict[results_dict["best_segmentor"]],
+                          dataset=test_dataset,
+                          output_dir=output_dir)
 
     return results_dict
 
