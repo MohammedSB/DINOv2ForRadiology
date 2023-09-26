@@ -117,8 +117,9 @@ def make_classification_eval_transform(
 def make_segmentation_train_transforms(
     *,
     resize_size: int = 448,
-    vflip_prob: float = 0.5,
-    rot_deg: float = 45,
+    vflip_prob: float = 0.25,
+    hflip_prob: float = 0.25,
+    rot_deg: float = 90,
     interpolation=transforms.InterpolationMode.BICUBIC,
     mean: Sequence[float] = IMAGENET_DEFAULT_MEAN,
     std: Sequence[float] = IMAGENET_DEFAULT_STD,
@@ -132,6 +133,9 @@ def make_segmentation_train_transforms(
     if vflip_prob > 0:
         train_transforms_list.append(transforms.RandomVerticalFlip(vflip_prob))
         target_transforms_list.append(transforms.RandomVerticalFlip(vflip_prob))
+    if hflip_prob > 0:
+        train_transforms_list.append(transforms.RandomVerticalFlip(hflip_prob))
+        target_transforms_list.append(transforms.RandomVerticalFlip(hflip_prob))
     if rot_deg > 0:
         train_transforms_list.append(transforms.RandomRotation(rot_deg))
         target_transforms_list.append(transforms.RandomRotation(rot_deg))

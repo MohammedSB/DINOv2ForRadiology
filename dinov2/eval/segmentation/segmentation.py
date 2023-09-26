@@ -72,6 +72,11 @@ def get_args_parser(
         help="Number of training epochs",
     )
     parser.add_argument(
+        "--val-epochs",
+        type=int,
+        help="Number of epochs for testing on validation",
+    )
+    parser.add_argument(
         "--batch-size",
         type=int,
         help="Batch Size (per GPU)",
@@ -146,6 +151,7 @@ def get_args_parser(
         test_dataset_str="MC:split=TEST",
         val_dataset_str=None,
         epochs=10,
+        val_epochs=None,
         batch_size=128,
         num_workers=0,
         epoch_length=None,
@@ -332,6 +338,7 @@ def run_eval_segmentation(
     test_dataset_str,
     batch_size,
     epochs,
+    val_epochs,
     epoch_length,
     num_workers,
     save_checkpoint_frequency,
@@ -380,7 +387,10 @@ def run_eval_segmentation(
 
     # Define checkpoint, optimizer, and scheduler
     optimizer = torch.optim.SGD(optim_param_groups, momentum=0.9, weight_decay=0)
-    max_iter = epochs * epoch_length
+    if val_epochs is not None:
+        max_iter = epoch_length * val_epochs
+    else:
+        max_iter = epoch_length * epochs 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iter, eta_min=0)
     checkpointer = Checkpointer(decoders, output_dir, optimizer=optimizer, scheduler=scheduler)
     start_iter = checkpointer.resume_or_load(segmentor_fpath or "", resume=resume).get("iteration", 0) + 1
@@ -501,6 +511,7 @@ def main(args):
         test_dataset_str=args.test_dataset_str,
         batch_size=args.batch_size,
         epochs=args.epochs,
+        val_epochs=args.val_epochs,
         epoch_length=args.epoch_length,
         num_workers=args.num_workers,
         save_checkpoint_frequency=args.save_checkpoint_frequency,
