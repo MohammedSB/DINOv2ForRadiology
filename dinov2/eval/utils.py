@@ -89,7 +89,7 @@ def evaluate(
     for samples, targets, *_ in metric_logger.log_every(data_loader, 10, header):
         
         outputs = model(samples.to(device))
-        if isinstance(outputs, torch.Tensor):
+        if isinstance(targets, torch.Tensor):
             targets = targets.to(device)
 
         if criterion is not None:

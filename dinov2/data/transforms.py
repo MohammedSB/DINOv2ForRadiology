@@ -23,7 +23,6 @@ class GaussianBlur(transforms.RandomApply):
         super().__init__(transforms=[transform], p=keep_p)
 
     
-
 class RescaleImage:
     def __call__(self, image):
         if isinstance(image, np.ndarray):
