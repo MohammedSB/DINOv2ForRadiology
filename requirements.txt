@@ -19,3 +19,4 @@ torchxrayvision
 matplotlib
 nibabel
 torchio
+monai

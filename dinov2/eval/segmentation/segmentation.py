@@ -19,6 +19,7 @@ import torch
 import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel
 from fvcore.common.checkpoint import Checkpointer, PeriodicCheckpointer
+from monai.losses.dice import DiceLoss
 
 from dinov2.data import SamplerType, make_data_loader, make_dataset
 from dinov2.data.transforms import (make_classification_eval_transform, make_classification_train_transform,
@@ -275,7 +276,7 @@ def eval_decoders(
             labels = torch.cat(labels, dim=0)
 
         labels = labels.cuda(non_blocking=True).type(torch.int64)
-        losses = {f"loss_{k}": nn.CrossEntropyLoss()(v, labels) for k, v in outputs.items()}
+        losses = {f"loss_{k}": DiceLoss(softmax=True, to_onehot_y=True)(v, labels.unsqueeze(1)).requires_grad_(True) for k, v in outputs.items()}
         
         loss = sum(losses.values())
 
@@ -383,7 +384,6 @@ def run_eval_segmentation(
     # Define feature model
     autocast_ctx = partial(torch.cuda.amp.autocast, enabled=True, dtype=autocast_dtype)
     feature_model = DINOV2Encoder(model, autocast_ctx=autocast_ctx, is_3d=is_3d)
-
 
     # Define checkpoint, optimizer, and scheduler
     optimizer = torch.optim.SGD(optim_param_groups, momentum=0.9, weight_decay=0)
