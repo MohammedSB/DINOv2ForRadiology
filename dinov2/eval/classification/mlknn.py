@@ -54,10 +54,10 @@ def get_args_parser(
         help="Training dataset",
     )
     parser.add_argument(
-        "--val-dataset",
-        dest="val_dataset_str",
+        "--test-dataset",
+        dest="test_dataset_str",
         type=str,
-        help="Validation dataset",
+        help="Test dataset",
     )
     parser.add_argument(
         "--nb_knn",
@@ -93,8 +93,8 @@ def get_args_parser(
         help="Number of tries",
     )
     parser.set_defaults(
-        train_dataset_str="ImageNet:split=TRAIN",
-        val_dataset_str="ImageNet:split=VAL",
+        train_dataset_str="NIHChestXray:split=TRAIN",
+        test_dataset_str="NIHChestXray:split=TEST",
         nb_knn=[5],
         temperature=0.07,
         batch_size=16,
@@ -107,15 +107,11 @@ def get_args_parser(
 def eval_knn(
     model,
     train_dataset,
-    val_dataset,
-    accuracy_averaging,
+    test_dataset,
     nb_knn,
-    temperature,
     batch_size,
     num_workers,
     gather_on_cpu,
-    n_per_class_list=[-1],
-    n_tries=1,
     metric_type=MetricType.MULTILABEL_AUROC
 ):
     model = ModelWithNormalize(model)
@@ -128,15 +124,15 @@ def eval_knn(
 
     model.eval()
     logger.info("Extracting features for evaluation set...")
-    val_features, val_labels = extract_features(
-        model, val_dataset, batch_size, num_workers, gather_on_cpu=gather_on_cpu
+    test_features, test_labels = extract_features(
+        model, test_dataset, batch_size, num_workers, gather_on_cpu=gather_on_cpu
     )
 
     labels = list(train_dataset.class_names)
     num_classes = train_dataset.get_num_classes()
 
     train_features, train_labels = train_features.cpu().numpy(), train_labels.cpu().numpy()
-    val_features, val_labels = val_features.cpu().numpy(), val_labels.cpu().numpy()
+    test_features, test_labels = test_features.cpu().numpy(), test_labels.cpu().numpy()
 
     results_dict = {}
     # ============ evaluation ... ============
@@ -147,10 +143,10 @@ def eval_knn(
 
         classifier = MLkNN(k)
         classifier.fit(train_features, train_labels)
-        results = torch.tensor(classifier.predict_proba(val_features).toarray()).cuda()
+        results = torch.tensor(classifier.predict_proba(test_features).toarray()).cuda()
         
         metric = build_metric(metric_type, num_classes=num_classes, labels=labels)
-        metric.update(**{"target": torch.tensor(val_labels).cuda(), "preds": results})
+        metric.update(**{"target": torch.tensor(test_labels).cuda(), "preds": results})
         metric.compute()
 
         results_dict[f"{k}"] = apply_method_to_nested_values(metric, "compute", nested_types=(MetricCollection, dict))
@@ -162,18 +158,14 @@ def eval_knn(
 def eval_knn_with_model(
     model,
     output_dir,
-    train_dataset_str="ImageNet:split=TRAIN",
-    val_dataset_str="ImageNet:split=VAL",
+    train_dataset_str="NIHChestXray:split=TRAIN",
+    test_dataset_str="NIHChestXray:split=TEST",
     nb_knn=(5, 20, 50, 100, 200),
-    temperature=0.07,
     autocast_dtype=torch.float,
-    accuracy_averaging=MetricAveraging.MEAN_ACCURACY,
     transform=None,
     gather_on_cpu=False,
     batch_size=256,
     num_workers=5,
-    n_per_class_list=[-1],
-    n_tries=1,
 ):
     
     transform = transform or make_classification_eval_transform()
@@ -183,7 +175,13 @@ def eval_knn_with_model(
         transform=transform,
     )
     val_dataset = make_dataset(
-        dataset_str=val_dataset_str,
+        dataset_str=train_dataset_str.replace("TRAIN", "VAL"),
+        transform=transform
+    )
+    train_dataset = torch.utils.data.ConcatDataset([train_dataset, val_dataset])
+
+    test_dataset = make_dataset(
+        dataset_str=test_dataset_str,
         transform=transform,
     )
 
@@ -191,15 +189,11 @@ def eval_knn_with_model(
         results_dict_knn = eval_knn(
             model=model,
             train_dataset=train_dataset,
-            val_dataset=val_dataset,
-            accuracy_averaging=accuracy_averaging,
+            test_dataset=test_dataset,
             nb_knn=nb_knn,
-            temperature=temperature,
             batch_size=batch_size,
             num_workers=num_workers,
             gather_on_cpu=gather_on_cpu,
-            n_per_class_list=n_per_class_list,
-            n_tries=n_tries,
         )
 
     metrics_file_path = os.path.join(output_dir, "results_eval_knn.json")
@@ -218,17 +212,13 @@ def main(args):
         model=model,
         output_dir=args.output_dir,
         train_dataset_str=args.train_dataset_str,
-        val_dataset_str=args.val_dataset_str,
+        test_dataset_str=args.test_dataset_str,
         nb_knn=args.nb_knn,
-        temperature=args.temperature,
         autocast_dtype=autocast_dtype,
-        accuracy_averaging=MetricAveraging.MEAN_ACCURACY,
         transform=None,
         gather_on_cpu=args.gather_on_cpu,
         batch_size=args.batch_size,
         num_workers=2,
-        n_per_class_list=args.n_per_class_list,
-        n_tries=args.n_tries,
     )
     return 0
 
