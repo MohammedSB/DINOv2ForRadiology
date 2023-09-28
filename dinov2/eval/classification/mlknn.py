@@ -128,8 +128,8 @@ def eval_knn(
         model, test_dataset, batch_size, num_workers, gather_on_cpu=gather_on_cpu
     )
 
-    labels = list(train_dataset.class_names)
-    num_classes = train_dataset.get_num_classes()
+    labels = list(test_dataset.class_names)
+    num_classes = test_dataset.get_num_classes()
 
     train_features, train_labels = train_features.cpu().numpy(), train_labels.cpu().numpy()
     test_features, test_labels = test_features.cpu().numpy(), test_labels.cpu().numpy()

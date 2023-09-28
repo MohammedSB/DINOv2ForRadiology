@@ -133,15 +133,9 @@ def get_args_parser(
         help="Path to a file containing pretrained linear classifiers",
     )
     parser.add_argument(
-        "--val-class-mapping-fpath",
-        type=str,
-        help="Path to a file containing a mapping to adjust classifier outputs",
-    )
-    parser.add_argument(
-        "--test-class-mapping-fpaths",
-        nargs="+",
-        type=str,
-        help="Path to a file containing a mapping to adjust classifier outputs",
+        "--fine-tune",
+        type=bool,
+        help="Whether to finetune the backbone.",
     )
     parser.set_defaults(
         train_dataset_str="NIHChestXray:split=TRAIN",
@@ -159,6 +153,7 @@ def get_args_parser(
         avgpools=[True, False],
         val_metric_type=MetricType.MULTILABEL_AUROC,
         classifier_fpath=None,
+        fine_tune=False,
     )
     return parser
 
@@ -365,6 +360,7 @@ def run_eval_linear(
     resume=True,
     classifier_fpath=None,
     val_metric_type=MetricType.MULTILABEL_AUROC,
+    fine_tune=False,
 ):
     seed = 0
     torch.manual_seed(seed)
@@ -404,16 +400,21 @@ def run_eval_linear(
         is_3d=is_3d
     )
 
-    fine_tune = False
-    if fine_tune:
-        optim_param_groups.append({'params': feature_model.parameters(), 'lr':3e-4})
-    optimizer = torch.optim.SGD(optim_param_groups, momentum=0.9, weight_decay=0)
     if val_epochs is not None:
         max_iter = epoch_length * val_epochs
     else:
         max_iter = epoch_length * epochs 
+
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iter, eta_min=0)
-    checkpointer = Checkpointer(linear_classifiers, output_dir, optimizer=optimizer, scheduler=scheduler)
+
+    if fine_tune:
+        optim_param_groups.append({'params': feature_model.parameters(), 'lr':3.5e-4})
+        model = {'backbone': feature_model, 'linear_classifiers': linear_classifiers}
+        checkpointer = Checkpointer(model, output_dir, optimizer=optimizer, scheduler=scheduler)
+    else:
+        checkpointer = Checkpointer(linear_classifiers, output_dir, optimizer=optimizer, scheduler=scheduler)
+        
+    optimizer = torch.optim.SGD(optim_param_groups, momentum=0.9, weight_decay=0)
     start_iter = checkpointer.resume_or_load(classifier_fpath or "", resume=resume).get("iteration", 0) + 1
 
     sampler_type = SamplerType.INFINITE
@@ -539,6 +540,7 @@ def main(args):
         resume=not args.no_resume,
         classifier_fpath=args.classifier_fpath,
         val_metric_type=args.val_metric_type,
+        fine_tune=args.fine_tune,
     )
     return 0
 
