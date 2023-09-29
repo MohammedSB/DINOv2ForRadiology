@@ -31,6 +31,7 @@ from dinov2.eval.utils import (ModelWithIntermediateLayers, evaluate, apply_meth
                                 is_zero_matrix, collate_fn_3d)
 from dinov2.eval.classification.utils import (setup_linear_classifiers, LinearPostprocessor)
 from dinov2.logging import MetricLogger
+from dinov2.data.wrappers import FewShotDatasetWrapper
 
 
 logger = logging.getLogger("dinov2")
@@ -137,6 +138,12 @@ def get_args_parser(
         type=bool,
         help="Whether to finetune the backbone.",
     )
+    parser.add_argument(
+        "--shots",
+        nargs="+",
+        type=int,
+        help="Number of shots for each class.",
+    )
     parser.set_defaults(
         train_dataset_str="NIHChestXray:split=TRAIN",
         val_dataset_str=None,
@@ -154,6 +161,7 @@ def get_args_parser(
         val_metric_type=MetricType.MULTILABEL_AUROC,
         classifier_fpath=None,
         fine_tune=False,
+        shots=None
     )
     return parser
 
@@ -361,6 +369,7 @@ def run_eval_linear(
     classifier_fpath=None,
     val_metric_type=MetricType.MULTILABEL_AUROC,
     fine_tune=False,
+    shots=None,
 ):
     seed = 0
     torch.manual_seed(seed)
@@ -373,6 +382,9 @@ def run_eval_linear(
     train_dataset, val_dataset, test_dataset = make_datasets(train_dataset_str=train_dataset_str, val_dataset_str=val_dataset_str,
                                                         test_dataset_str=test_dataset_str, train_transform=train_transform,
                                                         eval_transform=eval_transform)
+    if shots != None:
+        logger.info(f"Running dataset in {shots}-shot setting")
+        train_dataset = FewShotDatasetWrapper(train_dataset, shots=shots)
     num_of_classes = test_dataset.get_num_classes()
     num_of_classes = 1 if num_of_classes == 2 else num_of_classes
     is_multilabel = test_dataset.is_multilabel()
@@ -387,7 +399,7 @@ def run_eval_linear(
     sample_output = feature_model.forward_(sample_input.unsqueeze(0).cuda())
 
     if epoch_length == None:
-        epoch_length = math.ceil(train_dataset.get_length() / batch_size)
+        epoch_length = math.ceil(train_dataset.__len__() / batch_size)
     eval_period_epochs_ = eval_period_epochs * epoch_length
     checkpoint_period = save_checkpoint_frequency * epoch_length
     
@@ -404,7 +416,8 @@ def run_eval_linear(
         max_iter = epoch_length * val_epochs
     else:
         max_iter = epoch_length * epochs 
-
+    
+    optimizer = torch.optim.SGD(optim_param_groups, momentum=0.9, weight_decay=0)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iter, eta_min=0)
 
     if fine_tune:
@@ -414,7 +427,6 @@ def run_eval_linear(
     else:
         checkpointer = Checkpointer(linear_classifiers, output_dir, optimizer=optimizer, scheduler=scheduler)
         
-    optimizer = torch.optim.SGD(optim_param_groups, momentum=0.9, weight_decay=0)
     start_iter = checkpointer.resume_or_load(classifier_fpath or "", resume=resume).get("iteration", 0) + 1
 
     sampler_type = SamplerType.INFINITE
@@ -452,7 +464,8 @@ def run_eval_linear(
             dataset_str=val_dataset_str,
             transform=train_transform,
         )
-        train_dataset = torch.utils.data.ConcatDataset([train_dataset, val_dataset])
+        if shots == None: # If few-shot is enabled, keep training set. 
+            train_dataset = torch.utils.data.ConcatDataset([train_dataset, val_dataset])
 
         epoch_length = math.ceil(len(train_dataset) / batch_size)
         eval_period_epochs_ = eval_period_epochs * epoch_length
@@ -520,28 +533,34 @@ def run_eval_linear(
 
 def main(args):
     model, autocast_dtype = setup_and_build_model(args)
-    run_eval_linear(
-        model=model,
-        output_dir=args.output_dir,
-        train_dataset_str=args.train_dataset_str,
-        val_dataset_str=args.val_dataset_str,
-        test_dataset_str=args.test_dataset_str,
-        batch_size=args.batch_size,
-        epochs=args.epochs,
-        val_epochs=args.val_epochs,
-        epoch_length=args.epoch_length,
-        num_workers=args.num_workers,
-        save_checkpoint_frequency=args.save_checkpoint_frequency,
-        eval_period_epochs=args.eval_period_epochs,
-        learning_rates=args.learning_rates,
-        n_last_blocks_list=args.n_last_blocks,
-        avgpools=args.avgpools,
-        autocast_dtype=autocast_dtype,
-        resume=not args.no_resume,
-        classifier_fpath=args.classifier_fpath,
-        val_metric_type=args.val_metric_type,
-        fine_tune=args.fine_tune,
-    )
+    run = partial(run_eval_linear,
+            model=model,
+            train_dataset_str=args.train_dataset_str,
+            val_dataset_str=args.val_dataset_str,
+            test_dataset_str=args.test_dataset_str,
+            batch_size=args.batch_size,
+            epochs=args.epochs,
+            val_epochs=args.val_epochs,
+            epoch_length=args.epoch_length,
+            num_workers=args.num_workers,
+            save_checkpoint_frequency=args.save_checkpoint_frequency,
+            eval_period_epochs=args.eval_period_epochs,
+            learning_rates=args.learning_rates,
+            n_last_blocks_list=args.n_last_blocks,
+            avgpools=args.avgpools,
+            autocast_dtype=autocast_dtype,
+            resume=not args.no_resume,
+            classifier_fpath=args.classifier_fpath,
+            val_metric_type=args.val_metric_type,
+            fine_tune=args.fine_tune,
+            )
+    if args.shots != None:
+        for shot in args.shots:
+            fs_output_dir = args.output_dir + os.sep + f"shots-{shot}"
+            os.makedirs(fs_output_dir, exist_ok=True)
+            run(shots=shot, output_dir=fs_output_dir)
+    else:
+        run(shots=args.shots, output_dir=args.output_dir,)
     return 0
 
 
