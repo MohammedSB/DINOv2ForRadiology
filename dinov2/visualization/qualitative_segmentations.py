@@ -17,7 +17,7 @@ from torch.nn.parallel import DistributedDataParallel
 from fvcore.common.checkpoint import Checkpointer, PeriodicCheckpointer
 
 from dinov2.data import SamplerType, make_data_loader, make_dataset
-from dinov2.data.transforms import make_segmentation_transform, make_segmentation_target_transform
+from dinov2.data.transforms import make_segmentation_train_transforms, make_segmentation_eval_transforms
 from dinov2.eval.metrics import MetricAveraging, build_metric, build_segmentation_metrics
 from dinov2.eval.setup import setup_and_build_model, get_args_parser as get_setup_args_parser
 from dinov2.logging import MetricLogger
@@ -91,13 +91,13 @@ def run_qualtitave_result_generation(
     decoder,
 ):
     resize_size = 448
-    transform = make_segmentation_transform(resize_size=resize_size)
-    target_transform = make_segmentation_target_transform(resize_size=resize_size)
+    train_image_transform, train_target_transform = make_segmentation_train_transforms()
+    eval_image_transform, eval_target_transform  = make_segmentation_eval_transforms()
 
     dataset = make_dataset(
         dataset_str=args.dataset_str,
-        transform=transform,
-        target_transform=target_transform
+        transform=eval_image_transform,
+        target_transform=eval_target_transform
     )
 
     num_of_classes = dataset.get_num_classes()
