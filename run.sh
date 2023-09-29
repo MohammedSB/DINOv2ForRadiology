@@ -21,11 +21,12 @@
 PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/linear.py \
     --gpus 1 \
     --nodes 1 \
-    --batch-size 4 \
-    --val-epochs 20 \
+    --batch-size 100 \
+    --val-epochs 100 \
     --shots 1 2 4 \
-    --eval-period-epochs 20 \
-    --epochs 20 \
+    --eval-period-epochs 100 \
+    --save-checkpoint-frequency 50 \
+    --epochs 100 \
     --n-last-blocks 1 \
     --avgpools False \
     --val-metric-type multilabel_auc \

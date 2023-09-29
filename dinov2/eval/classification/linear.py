@@ -385,6 +385,8 @@ def run_eval_linear(
     if shots != None:
         logger.info(f"Running dataset in {shots}-shot setting")
         train_dataset = FewShotDatasetWrapper(train_dataset, shots=shots)
+
+    batch_size = train_dataset.__len__() if batch_size > train_dataset.__len__() else batch_size
     num_of_classes = test_dataset.get_num_classes()
     num_of_classes = 1 if num_of_classes == 2 else num_of_classes
     is_multilabel = test_dataset.is_multilabel()
@@ -447,7 +449,7 @@ def run_eval_linear(
         output_dir=output_dir,
         max_iter=max_iter,
         checkpoint_period=checkpoint_period,
-        running_checkpoint_period=epoch_length,
+        running_checkpoint_period=checkpoint_period//2,
         eval_period=eval_period_epochs_,
         metric_type=val_metric_type,
         num_of_classes=num_of_classes,
@@ -515,7 +517,7 @@ def run_eval_linear(
             output_dir=output_dir,
             max_iter=max_iter,
             checkpoint_period=checkpoint_period,
-            running_checkpoint_period=epoch_length,
+            running_checkpoint_period=checkpoint_period//2,
             eval_period=eval_period_epochs_,
             metric_type=val_metric_type,
             num_of_classes=num_of_classes,
