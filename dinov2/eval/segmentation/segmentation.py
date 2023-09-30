@@ -32,6 +32,7 @@ from dinov2.eval.utils import (extract_hyperparameters_from_model, ModelWithInte
                                 apply_method_to_nested_values, make_datasets, make_data_loaders, collate_fn_3d)
 from dinov2.eval.segmentation.utils import (setup_decoders, LinearPostprocessor, DINOV2Encoder, save_test_results)
 from dinov2.logging import MetricLogger
+from dinov2.data.wrappers import FewShotDatasetWrapper
 
 
 logger = logging.getLogger("dinov2")
@@ -147,6 +148,12 @@ def get_args_parser(
         type=str,
         help="The type of decoder to use [linear]",
     )
+    parser.add_argument(
+        "--shots",
+        nargs="+",
+        type=int,
+        help="Number of shots for each class.",
+    )
     parser.set_defaults(
         train_dataset_str="MC:split=TRAIN",
         test_dataset_str="MC:split=TEST",
@@ -161,7 +168,8 @@ def get_args_parser(
         learning_rates=[1e-4, 5e-4, 1e-3, 5e-3, 1e-2, 5e-2, 1e-1],
         val_metric_type=MetricType.MULTILABEL_AUROC,
         segmentor_fpath=None,
-        decoder_type="linear"
+        decoder_type="linear",
+        shots=None
     )
     return parser
 
@@ -350,6 +358,7 @@ def run_eval_segmentation(
     resume=True,
     segmentor_fpath=None,
     val_metric_type=MetricType.SEGMENTATION_METRICS,
+    shots=None,
 ):
     seed = 0
     torch.manual_seed(seed)
@@ -364,6 +373,11 @@ def run_eval_segmentation(
                                                             test_dataset_str=test_dataset_str, train_transform=train_image_transform,
                                                             eval_transform=eval_image_transform, train_target_transform=train_target_transform,
                                                             eval_target_transform=eval_target_transform)
+    if shots != None:
+        logger.info(f"Running dataset in {shots}-shot setting")
+        train_dataset = FewShotDatasetWrapper(train_dataset, shots=shots)
+
+    batch_size = train_dataset.__len__() if batch_size > train_dataset.__len__() else batch_size
     embed_dim = model.embed_dim
     is_3d = test_dataset.is_3d()
     collate_fn = None if not is_3d else collate_fn_3d
@@ -414,7 +428,7 @@ def run_eval_segmentation(
         output_dir=output_dir,
         max_iter=max_iter,
         checkpoint_period=checkpoint_period,
-        running_checkpoint_period=epoch_length,
+        running_checkpoint_period=checkpoint_period//2,
         eval_period=eval_period_epochs_,
         metric_type=val_metric_type,
         num_of_classes=num_of_classes,
@@ -427,12 +441,13 @@ def run_eval_segmentation(
 
         start_iter = 1
 
-        val_dataset = make_dataset(
-            dataset_str=val_dataset_str,
-            transform=train_image_transform,
-            target_transform=train_target_transform
-        )
-        train_dataset = torch.utils.data.ConcatDataset([train_dataset, val_dataset])
+        if shots == None: # If few-shot is enabled, keep training set. 
+            val_dataset = make_dataset(
+                dataset_str=val_dataset_str,
+                transform=train_image_transform,
+                target_transform=train_target_transform
+            )
+            train_dataset = torch.utils.data.ConcatDataset([train_dataset, val_dataset])
 
         epoch_length = math.ceil(len(train_dataset) / batch_size)
         eval_period_epochs_ = eval_period_epochs * epoch_length
@@ -503,10 +518,9 @@ def run_eval_segmentation(
 
 def main(args):
     model, autocast_dtype = setup_and_build_model(args)
-    run_eval_segmentation(
+    run = partial(run_eval_segmentation,
         model=model,
         decoder_type=args.decoder_type,
-        output_dir=args.output_dir,
         train_dataset_str=args.train_dataset_str,
         test_dataset_str=args.test_dataset_str,
         batch_size=args.batch_size,
@@ -523,7 +537,16 @@ def main(args):
         segmentor_fpath=args.segmentor_fpath,
         val_metric_type=args.val_metric_type,
     )
+    if args.shots != None:
+        for shot in args.shots:
+            fs_output_dir = args.output_dir + os.sep + f"shots-{shot}"
+            os.makedirs(fs_output_dir, exist_ok=True)
+            run(shots=shot, output_dir=fs_output_dir)
+    else:
+        run(shots=args.shots, output_dir=args.output_dir,)
     return 0
+
+# output_dir=args.output_dir,
 
 if __name__ == "__main__":
     description = "Segmentation evaluation"

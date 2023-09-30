@@ -462,11 +462,11 @@ def run_eval_linear(
 
         start_iter = 1
 
-        val_dataset = make_dataset(
-            dataset_str=val_dataset_str,
-            transform=train_transform,
-        )
         if shots == None: # If few-shot is enabled, keep training set. 
+            val_dataset = make_dataset(
+                dataset_str=val_dataset_str,
+                transform=train_transform,
+            )
             train_dataset = torch.utils.data.ConcatDataset([train_dataset, val_dataset])
 
         epoch_length = math.ceil(len(train_dataset) / batch_size)
