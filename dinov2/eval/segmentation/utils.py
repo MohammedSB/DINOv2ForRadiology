@@ -9,12 +9,13 @@ import dinov2.distributed as distributed
 from dinov2.eval.utils import is_zero_matrix
 
 class DINOV2Encoder(torch.nn.Module):
-    def __init__(self, encoder, autocast_ctx, is_3d=False) -> None:
+    def __init__(self, encoder, autocast_ctx, n_last_blocks=1, is_3d=False) -> None:
         super(DINOV2Encoder, self).__init__()
         self.encoder = encoder
         self.encoder.eval()
         self.autocast_ctx = autocast_ctx
         self.is_3d = is_3d
+        self.n_last_blocks = n_last_blocks
     
     def forward_3d(self, x):
         batch_features = [] 
@@ -28,7 +29,12 @@ class DINOV2Encoder(torch.nn.Module):
     def forward_(self, x):
         with torch.no_grad():
             with self.autocast_ctx():
-                features = self.encoder.forward_features(x)['x_norm_patchtokens']
+                if self.n_last_blocks == 1:
+                    features = self.encoder.forward_features(x)['x_norm_patchtokens']
+                else:
+                    features = self.encoder.get_intermediate_layers(
+                        x, self.n_last_blocks, return_class_token=False
+            )
         return features
 
     def forward(self, x):
@@ -78,6 +84,59 @@ class LinearDecoder(torch.nn.Module):
             return self.forward_3d(embeddings, up_size)
         return self.forward_(embeddings, up_size)
     
+class UNetDecoderUpBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, embed_dim=1024) -> None:
+        super().__init__()
+        self.upconv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2)
+        self.conv = nn.Sequential(
+            nn.Conv2d(out_channels*2, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+        )
+        self.skip_conv = nn.Sequential(
+            nn.Conv2d(embed_dim, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+        )        
+
+    def forward(self, x1, x2):
+        x1 = self.upconv(x1)
+        x2 = self.skip_conv(x2)
+        scale_factor = (x1.size()[2] / x2.size()[2])
+        x2 = nn.Upsample(scale_factor=scale_factor, mode="bilinear", align_corners=True)(x2)
+        x = torch.concat([x1, x2], dim=1)
+        return self.conv(x)
+    
+class UNetDecoder(nn.Module):
+    """Unet decoder head"""
+    DECODER_TYPE = "unet"
+
+    def __init__(self, in_channels, out_channels, image_size=224):
+        super(UNetDecoder, self).__init__()
+        self.embed_dim = in_channels
+        self.image_size = image_size
+        self.up1 = UNetDecoderUpBlock(in_channels=in_channels, out_channels=in_channels//2, embed_dim=self.embed_dim)
+        self.up2 = UNetDecoderUpBlock(in_channels=in_channels//2, out_channels=in_channels//4, embed_dim=self.embed_dim)
+        self.up3 = UNetDecoderUpBlock(in_channels=in_channels//4, out_channels=in_channels//8, embed_dim=self.embed_dim)
+        self.up4 = UNetDecoderUpBlock(in_channels=in_channels//8, out_channels=out_channels, embed_dim=self.embed_dim)
+
+    def forward(self, x):
+
+        h = w = self.image_size//14
+
+        skip1 = x[3].reshape(-1, h, w, self.embed_dim).permute(0,3,1,2)
+        skip2 = x[2].reshape(-1, h, w, self.embed_dim).permute(0,3,1,2)
+        skip3 = x[1].reshape(-1, h, w, self.embed_dim).permute(0,3,1,2)
+        skip4 = x[0].reshape(-1, h, w, self.embed_dim).permute(0,3,1,2)
+        x1    = x[3].reshape(-1, h, w, self.embed_dim).permute(0,3,1,2)
+        
+        x2 = self.up1(x1, skip1)
+        x3 = self.up2(x2, skip2)
+        x4 = self.up3(x3, skip3)
+        x5 = self.up4(x4, skip4)
+
+        return x5
+    
 class LinearPostprocessor(nn.Module):
     def __init__(self, decoder):
         super().__init__()
@@ -110,7 +169,7 @@ class AllDecoders(nn.Module):
     def __len__(self):
         return len(self.decoders_dict)
 
-def setup_decoders(embed_dim, learning_rates, num_classes=14, decoder_type="linear", is_3d=False):
+def setup_decoders(embed_dim, learning_rates, num_classes=14, decoder_type="linear", is_3d=False, image_size=224):
     """
     Sets up the multiple segmentors with different hyperparameters to test out the most optimal one 
     """
@@ -120,6 +179,10 @@ def setup_decoders(embed_dim, learning_rates, num_classes=14, decoder_type="line
         if decoder_type == "linear":
             decoder = LinearDecoder(
                 embed_dim, num_classes=num_classes, is_3d=is_3d
+            )
+        elif decoder_type == "unet":
+            decoder = UNetDecoder(
+                in_channels=embed_dim, out_channels=num_classes, image_size=image_size
             )
         decoder = decoder.cuda()
         decoders_dict[

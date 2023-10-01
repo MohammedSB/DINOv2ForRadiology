@@ -272,7 +272,7 @@ def eval_linear(
         start_iter,
     ):
         data = data.cuda(non_blocking=True)
-        labels = labels.cuda(non_blocking=True)
+        labels = torch.tensor(labels).cuda(non_blocking=True)
 
         # forward pass
         features = feature_model(data)
@@ -310,6 +310,13 @@ def eval_linear(
             metric_logger.update(loss=loss.item())
             metric_logger.update(lr=optimizer.param_groups[0]["lr"])
             print("lr", optimizer.param_groups[0]["lr"])
+            i = 0
+            for name, param in feature_model.named_parameters():
+                if i == 5:  # '0.' corresponds to the first layer in the model
+                    print(name, param)
+                    break
+                else:
+                    i+=1 
 
         if iteration - start_iter > 5:
             if iteration % running_checkpoint_period == 0:
@@ -423,12 +430,14 @@ def run_eval_linear(
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iter, eta_min=0)
 
     if fine_tune:
+        logger.info("Finetuning backbone")
         optim_param_groups.append({'params': feature_model.parameters(), 'lr':3.5e-4})
-        model = {'backbone': feature_model, 'linear_classifiers': linear_classifiers}
+        model = nn.Sequential(feature_model, linear_classifiers)
         checkpointer = Checkpointer(model, output_dir, optimizer=optimizer, scheduler=scheduler)
     else:
         checkpointer = Checkpointer(linear_classifiers, output_dir, optimizer=optimizer, scheduler=scheduler)
-        
+    
+    print("class path", classifier_fpath)
     start_iter = checkpointer.resume_or_load(classifier_fpath or "", resume=resume).get("iteration", 0) + 1
 
     sampler_type = SamplerType.INFINITE

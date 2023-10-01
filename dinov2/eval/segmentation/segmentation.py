@@ -146,13 +146,18 @@ def get_args_parser(
     parser.add_argument(
         "--decoder-type",
         type=str,
-        help="The type of decoder to use [linear]",
+        help="The type of decoder to use [linear, unet]",
     )
     parser.add_argument(
         "--shots",
         nargs="+",
         type=int,
         help="Number of shots for each class.",
+    )
+    parser.add_argument(
+        "--image-size",
+        type=int,
+        help="Size of input image",
     )
     parser.set_defaults(
         train_dataset_str="MC:split=TRAIN",
@@ -169,7 +174,8 @@ def get_args_parser(
         val_metric_type=MetricType.MULTILABEL_AUROC,
         segmentor_fpath=None,
         decoder_type="linear",
-        shots=None
+        shots=None,
+        image_size=448,
     )
     return parser
 
@@ -359,6 +365,7 @@ def run_eval_segmentation(
     segmentor_fpath=None,
     val_metric_type=MetricType.SEGMENTATION_METRICS,
     shots=None,
+    image_size=448
 ):
     seed = 0
     torch.manual_seed(seed)
@@ -367,8 +374,9 @@ def run_eval_segmentation(
         raise ValueError("Test dataset cannot be None")
     
     # make datasets
-    train_image_transform, train_target_transform = make_segmentation_train_transforms()
-    eval_image_transform, eval_target_transform  = make_segmentation_eval_transforms()
+    train_image_transform, train_target_transform = make_segmentation_train_transforms(resize_size=image_size)
+    target_resize = image_size / 0.875 if decoder_type == "unet" else image_size
+    eval_image_transform, eval_target_transform  = make_segmentation_eval_transforms(resize_size=target_resize)
     train_dataset, val_dataset, test_dataset = make_datasets(train_dataset_str=train_dataset_str, val_dataset_str=val_dataset_str,
                                                             test_dataset_str=test_dataset_str, train_transform=train_image_transform,
                                                             eval_transform=eval_image_transform, train_target_transform=train_target_transform,
@@ -387,7 +395,8 @@ def run_eval_segmentation(
         learning_rates,
         num_of_classes,
         decoder_type,
-        is_3d
+        is_3d,
+        image_size=image_size
     )
 
     if epoch_length == None:
@@ -397,7 +406,8 @@ def run_eval_segmentation(
 
     # Define feature model
     autocast_ctx = partial(torch.cuda.amp.autocast, enabled=True, dtype=autocast_dtype)
-    feature_model = DINOV2Encoder(model, autocast_ctx=autocast_ctx, is_3d=is_3d)
+    n_last_blocks = 4 if decoder_type == "unet" else 1 
+    feature_model = DINOV2Encoder(model, autocast_ctx=autocast_ctx, n_last_blocks=n_last_blocks, is_3d=is_3d)
 
     # Define checkpoint, optimizer, and scheduler
     optimizer = torch.optim.SGD(optim_param_groups, momentum=0.9, weight_decay=0)
@@ -536,6 +546,7 @@ def main(args):
         resume=not args.no_resume,
         segmentor_fpath=args.segmentor_fpath,
         val_metric_type=args.val_metric_type,
+        image_size=args.image_size,
     )
     if args.shots != None:
         for shot in args.shots:

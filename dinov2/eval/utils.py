@@ -55,11 +55,10 @@ class ModelWithIntermediateLayers(nn.Module):
         return batch_features
 
     def forward_(self, images):
-        with torch.inference_mode():
-            with self.autocast_ctx():
-                features = self.feature_model.get_intermediate_layers(
-                    images, self.n_last_blocks, return_class_token=True
-                )
+        with self.autocast_ctx():
+            features = self.feature_model.get_intermediate_layers(
+                images, self.n_last_blocks, return_class_token=True
+            )
         return features
     
     def forward(self, images):
