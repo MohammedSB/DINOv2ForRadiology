@@ -47,8 +47,10 @@ class Shenzhen(MedicalVisionDataset):
 
         self._masks_path = self._root + os.sep + "masks"
 
-        self.class_id_mapping = {"background": 0, "lung": 1}
-        self.class_names = list(self.class_id_mapping.keys())
+        self.class_id_mapping = pd.DataFrame([0, 1],
+                                            index=["background", "lung"],
+                                            columns=["class_id"])
+        self.class_names = np.array(self.class_id_mapping.index)
 
     @property
     def split(self) -> "Shenzhen.Split":
@@ -77,7 +79,7 @@ class Shenzhen(MedicalVisionDataset):
         mask_path = self._masks_path + os.sep + mask_path
         mask = skimage.io.imread(mask_path).astype(np.int_)
 
-        mask[mask==255] = self.class_id_mapping["lung"]
+        mask[mask==255] = self.class_id_mapping.loc["lung"]["class_id"] 
 
         target = torch.from_numpy(mask).unsqueeze(0)
 
