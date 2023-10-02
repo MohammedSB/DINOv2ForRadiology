@@ -138,7 +138,7 @@ class UNetDecoder(nn.Module):
         x5 = self.up4(x4, skip4)
         
         if self.resize_image:
-            x5 = transforms.Resize((self.image_size, self.image_size), interpolation=transforms.InterpolationMode.BICUBIC)
+            x5 = transforms.Resize((self.image_size, self.image_size), interpolation=transforms.InterpolationMode.BICUBIC)(x5)
 
         return x5
     
