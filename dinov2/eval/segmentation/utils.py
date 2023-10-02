@@ -7,6 +7,7 @@ import torch.nn as nn
 
 import dinov2.distributed as distributed
 from dinov2.eval.utils import is_zero_matrix
+from torchvision.transforms import transforms
 
 class DINOV2Encoder(torch.nn.Module):
     def __init__(self, encoder, autocast_ctx, n_last_blocks=1, is_3d=False) -> None:
@@ -111,10 +112,11 @@ class UNetDecoder(nn.Module):
     """Unet decoder head"""
     DECODER_TYPE = "unet"
 
-    def __init__(self, in_channels, out_channels, image_size=224):
+    def __init__(self, in_channels, out_channels, image_size=224, resize_image=False):
         super(UNetDecoder, self).__init__()
         self.embed_dim = in_channels
         self.image_size = image_size
+        self.resize_image = resize_image
         self.up1 = UNetDecoderUpBlock(in_channels=in_channels, out_channels=in_channels//2, embed_dim=self.embed_dim)
         self.up2 = UNetDecoderUpBlock(in_channels=in_channels//2, out_channels=in_channels//4, embed_dim=self.embed_dim)
         self.up3 = UNetDecoderUpBlock(in_channels=in_channels//4, out_channels=in_channels//8, embed_dim=self.embed_dim)
@@ -134,6 +136,9 @@ class UNetDecoder(nn.Module):
         x3 = self.up2(x2, skip2)
         x4 = self.up3(x3, skip3)
         x5 = self.up4(x4, skip4)
+        
+        if self.resize_image:
+            x5 = transforms.Resize((self.image_size, self.image_size), interpolation=transforms.InterpolationMode.BICUBIC)
 
         return x5
     
@@ -182,7 +187,7 @@ def setup_decoders(embed_dim, learning_rates, num_classes=14, decoder_type="line
             )
         elif decoder_type == "unet":
             decoder = UNetDecoder(
-                in_channels=embed_dim, out_channels=num_classes, image_size=image_size
+                in_channels=embed_dim, out_channels=num_classes, image_size=image_size, resize_image=True
             )
         decoder = decoder.cuda()
         decoders_dict[

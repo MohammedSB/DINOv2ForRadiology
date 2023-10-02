@@ -375,8 +375,7 @@ def run_eval_segmentation(
     
     # make datasets
     train_image_transform, train_target_transform = make_segmentation_train_transforms(resize_size=image_size)
-    target_resize = image_size / 0.875 if decoder_type == "unet" else image_size
-    eval_image_transform, eval_target_transform  = make_segmentation_eval_transforms(resize_size=target_resize)
+    eval_image_transform, eval_target_transform  = make_segmentation_eval_transforms(resize_size=image_size)
     train_dataset, val_dataset, test_dataset = make_datasets(train_dataset_str=train_dataset_str, val_dataset_str=val_dataset_str,
                                                             test_dataset_str=test_dataset_str, train_transform=train_image_transform,
                                                             eval_transform=eval_image_transform, train_target_transform=train_target_transform,

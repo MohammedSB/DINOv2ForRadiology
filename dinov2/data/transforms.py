@@ -116,7 +116,8 @@ def make_classification_eval_transform(
 
 def make_segmentation_train_transforms(
     *,
-    resize_size: int = 448,
+    image_resize_size: int = 448,
+    target_resize_size: int = 448,
     vflip_prob: float = 0.25,
     hflip_prob: float = 0.25,
     rot_deg: float = 90,
@@ -125,10 +126,10 @@ def make_segmentation_train_transforms(
     std: Sequence[float] = IMAGENET_DEFAULT_STD,
 ) -> transforms.Compose:
     train_transforms_list = [
-        transforms.Resize((resize_size, resize_size), interpolation=interpolation)
+        transforms.Resize((image_resize_size, image_resize_size), interpolation=interpolation)
         ]
     target_transforms_list = [
-        transforms.Resize((resize_size, resize_size), interpolation=interpolation)
+        transforms.Resize((target_resize_size, target_resize_size), interpolation=interpolation)
         ]
     if vflip_prob > 0:
         train_transforms_list.append(transforms.RandomVerticalFlip(vflip_prob))
@@ -152,19 +153,20 @@ def make_segmentation_train_transforms(
 
 def make_segmentation_eval_transforms(
     *,
-    resize_size: int = 448,
+    image_resize_size: int = 448,
+    target_resize_size: int = 448,
     interpolation=transforms.InterpolationMode.BICUBIC,
     mean: Sequence[float] = IMAGENET_DEFAULT_MEAN,
     std: Sequence[float] = IMAGENET_DEFAULT_STD,
 ) -> transforms.Compose:
     train_transforms_list = [
-        transforms.Resize((resize_size, resize_size), interpolation=interpolation),
+        transforms.Resize((image_resize_size, image_resize_size), interpolation=interpolation),
         MaybeToTensor(),
         RescaleImage(),
         make_normalize_transform(mean=mean, std=std)
     ]
     target_transform_list = [
-        transforms.Resize((resize_size, resize_size), interpolation=interpolation),
+        transforms.Resize((target_resize_size, target_resize_size), interpolation=interpolation),
         MaybeToTensor(),
     ] 
     return (transforms.Compose(train_transforms_list),
