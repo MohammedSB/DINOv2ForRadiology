@@ -405,7 +405,7 @@ def run_eval_segmentation(
 
     # Define feature model
     autocast_ctx = partial(torch.cuda.amp.autocast, enabled=True, dtype=autocast_dtype)
-    n_last_blocks = 4 if decoder_type == "unet" else 1 
+    n_last_blocks = 5 if decoder_type == "unet" else 1 
     feature_model = DINOV2Encoder(model, autocast_ctx=autocast_ctx, n_last_blocks=n_last_blocks, is_3d=is_3d)
 
     # Define checkpoint, optimizer, and scheduler
@@ -481,7 +481,9 @@ def run_eval_segmentation(
             embed_dim,
             learning_rate,
             num_of_classes,
-            decoder_type
+            decoder_type,
+            is_3d=is_3d,
+            image_size=image_size
         )
 
         output_dir += os.sep + 'optimal'
@@ -503,7 +505,7 @@ def run_eval_segmentation(
             output_dir=output_dir,
             max_iter=max_iter,
             checkpoint_period=checkpoint_period,
-            running_checkpoint_period=epoch_length,
+            running_checkpoint_period=checkpoint_period//2,
             eval_period=eval_period_epochs_,
             metric_type=val_metric_type,
             num_of_classes=num_of_classes,

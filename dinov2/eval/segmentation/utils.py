@@ -130,7 +130,7 @@ class UNetDecoder(nn.Module):
         skip2 = x[2].reshape(-1, h, w, self.embed_dim).permute(0,3,1,2)
         skip3 = x[1].reshape(-1, h, w, self.embed_dim).permute(0,3,1,2)
         skip4 = x[0].reshape(-1, h, w, self.embed_dim).permute(0,3,1,2)
-        x1    = x[3].reshape(-1, h, w, self.embed_dim).permute(0,3,1,2)
+        x1    = x[4].reshape(-1, h, w, self.embed_dim).permute(0,3,1,2)
         
         x2 = self.up1(x1, skip1)
         x3 = self.up2(x2, skip2)
