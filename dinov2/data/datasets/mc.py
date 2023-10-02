@@ -47,8 +47,11 @@ class MC(MedicalVisionDataset):
         
         self._masks_path = self._root + os.sep + "ManualMask"
 
-        self.class_id_mapping = {"background": 0, "left_lung": 1, "right_lung": 2}
-        self.class_names = list(self.class_id_mapping.keys())
+        self.class_id_mapping = pd.DataFrame([0, 1, 2],
+                                            index=["background", "left_lung", "right_lung"],
+                                            columns=["class_id"])
+        self.class_names = np.array(self.class_id_mapping.index)
+
 
     @property
     def split(self) -> "MC.Split":
@@ -82,8 +85,8 @@ class MC(MedicalVisionDataset):
         left_mask = skimage.io.imread(left_mask_path).astype(np.int_)
         right_mask = skimage.io.imread(right_mask_path).astype(np.int_)
 
-        left_mask[left_mask==1] = self.class_id_mapping["left_lung"]
-        right_mask[right_mask==1] = self.class_id_mapping["right_lung"]    
+        left_mask[left_mask==1] = self.class_id_mapping.loc["left_lung"]["class_id"]
+        right_mask[right_mask==1] = self.class_id_mapping.loc["right_lung"]["class_id"]  
 
         target = left_mask + right_mask
 

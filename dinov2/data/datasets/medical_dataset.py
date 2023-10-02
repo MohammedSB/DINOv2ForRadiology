@@ -3,6 +3,7 @@ import os
 from typing import Callable, Optional
 from torchvision.datasets import VisionDataset
 from abc import ABC, abstractmethod
+import numpy as np
 
 logger = logging.getLogger("dinov2")
 
@@ -22,7 +23,7 @@ class MedicalVisionDataset(VisionDataset):
         self._define_split_dir()
         self._check_size()
         
-        self.images = os.listdir(self._split_dir)
+        self.images = np.array(os.listdir(self._split_dir))
 
     @property
     def split(self):

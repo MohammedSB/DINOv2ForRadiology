@@ -44,10 +44,10 @@ class SARSCoV2CT(MedicalVisionDataset):
     ) -> None:
         super().__init__(split, root, transforms, transform, target_transform)
 
-        self.class_names = [
+        self.class_names = np.array([
             "Negative",
             "Positive"
-        ]
+        ])
 
     @property
     def split(self) -> "SARSCoV2CT.Split":
