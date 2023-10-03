@@ -66,7 +66,7 @@ def get_args_parser(
         help="Learning rates to grid search",
     )
     parser.add_argument(
-        "--decoder",
+        "--decoder-type",
         type=list,
         help="The type of decoder [linear, unet]",
     )
@@ -174,7 +174,7 @@ def main(args):
         num_of_images=args.num_of_images,
         random=args.random,
         learning_rates=args.learning_rates,
-        decoder=args.decoder
+        decoder_type=args.decoder_type
     )
     return 0
 
