@@ -68,14 +68,14 @@ def get_args_parser(
     parser.add_argument(
         "--decoder",
         type=list,
-        help="The type of decoder [linear]",
+        help="The type of decoder [linear, unet]",
     )
     parser.set_defaults(
         dataset_str="MC:split=TEST",
         num_of_images = 5,
         random = False,
         learning_rates=[0],
-        decoder=["linear"]
+        decoder="linear"
     )
     return parser
 
@@ -88,7 +88,7 @@ def run_qualtitave_result_generation(
     num_of_images,
     random,
     learning_rates,
-    decoder,
+    decoder_type,
 ):
     resize_size = 448
     train_image_transform, train_target_transform = make_segmentation_train_transforms()
@@ -101,12 +101,16 @@ def run_qualtitave_result_generation(
     )
 
     num_of_classes = dataset.get_num_classes()
+    is_3d = dataset.is_3d()
 
     embed_dim = model.embed_dim
     decoders, optim_param_groups = setup_decoders(
         embed_dim,
         learning_rates,
         num_of_classes,
+        decoder_type,
+        is_3d=is_3d,
+        image_size=resize_size
     )
     checkpointer = Checkpointer(decoders, head_path)
     checkpointer.resume_or_load(head_path, resume=True)
