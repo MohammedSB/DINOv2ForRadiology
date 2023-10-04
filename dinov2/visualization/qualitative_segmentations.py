@@ -67,7 +67,7 @@ def get_args_parser(
     )
     parser.add_argument(
         "--decoder-type",
-        type=list,
+        type=str,
         help="The type of decoder [linear, unet]",
     )
     parser.set_defaults(
@@ -75,7 +75,7 @@ def get_args_parser(
         num_of_images = 5,
         random = False,
         learning_rates=[0],
-        decoder="linear"
+        decoder_type="linear"
     )
     return parser
 
@@ -90,6 +90,9 @@ def run_qualtitave_result_generation(
     learning_rates,
     decoder_type,
 ):
+    seed = 0
+    torch.manual_seed(seed)
+    
     resize_size = 448
     train_image_transform, train_target_transform = make_segmentation_train_transforms()
     eval_image_transform, eval_target_transform  = make_segmentation_eval_transforms()
@@ -116,7 +119,8 @@ def run_qualtitave_result_generation(
     checkpointer.resume_or_load(head_path, resume=True)
 
     autocast_ctx = partial(torch.cuda.amp.autocast, enabled=True, dtype=autocast_dtype)
-    feature_model = DINOV2Encoder(model, autocast_ctx=autocast_ctx)
+    n_last_blocks = 5 if decoder_type == "unet" else 1
+    feature_model = DINOV2Encoder(model, autocast_ctx=autocast_ctx, n_last_blocks=n_last_blocks)
 
     decoder = list(decoders.module.decoders_dict.values())[0]
 

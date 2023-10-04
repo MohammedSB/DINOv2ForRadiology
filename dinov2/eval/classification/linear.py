@@ -256,7 +256,10 @@ def eval_linear(
     classifier_fpath=None,
     is_multilabel=True,
 ):
-    checkpointer = Checkpointer(linear_classifiers, output_dir, optimizer=optimizer, scheduler=scheduler)
+    if feature_model.fine_tune:
+        checkpointer = Checkpointer(nn.Sequential(feature_model, linear_classifiers), output_dir, optimizer=optimizer, scheduler=scheduler)
+    else:
+        checkpointer = Checkpointer(linear_classifiers, output_dir, optimizer=optimizer, scheduler=scheduler)
     start_iter = checkpointer.resume_or_load(classifier_fpath or "", resume=resume).get("iteration", 0) + 1
 
     periodic_checkpointer = PeriodicCheckpointer(checkpointer, checkpoint_period, max_iter=max_iter)
@@ -402,7 +405,7 @@ def run_eval_linear(
 
     n_last_blocks = max(n_last_blocks_list)
     autocast_ctx = partial(torch.cuda.amp.autocast, enabled=True, dtype=autocast_dtype)
-    feature_model = ModelWithIntermediateLayers(model, n_last_blocks, autocast_ctx, is_3d=is_3d)
+    feature_model = ModelWithIntermediateLayers(model, n_last_blocks, autocast_ctx, is_3d=is_3d, fine_tune=fine_tune)
 
     sample_input = train_dataset[0][0][0] if is_3d else train_dataset[0][0] 
     sample_output = feature_model.forward_(sample_input.unsqueeze(0).cuda())
@@ -426,16 +429,18 @@ def run_eval_linear(
     else:
         max_iter = epoch_length * epochs 
     
-    optimizer = torch.optim.SGD(optim_param_groups, momentum=0.9, weight_decay=0)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iter, eta_min=0)
+
 
     if fine_tune:
         logger.info("Finetuning backbone")
         optim_param_groups.append({'params': feature_model.parameters(), 'lr':3.5e-4})
-        model = nn.Sequential(feature_model, linear_classifiers)
-        checkpointer = Checkpointer(model, output_dir, optimizer=optimizer, scheduler=scheduler)
+        checkpoint_model = nn.Sequential(feature_model, linear_classifiers)
     else:
-        checkpointer = Checkpointer(linear_classifiers, output_dir, optimizer=optimizer, scheduler=scheduler)
+        checkpoint_model = linear_classifiers
+
+    optimizer = torch.optim.SGD(optim_param_groups, momentum=0.9, weight_decay=0)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iter, eta_min=0)
+    checkpointer = Checkpointer(checkpoint_model, output_dir, optimizer=optimizer, scheduler=scheduler)
     
     print("class path", classifier_fpath)
     start_iter = checkpointer.resume_or_load(classifier_fpath or "", resume=resume).get("iteration", 0) + 1

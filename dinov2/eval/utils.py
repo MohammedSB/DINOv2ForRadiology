@@ -37,10 +37,14 @@ class ModelWithNormalize(torch.nn.Module):
 
 
 class ModelWithIntermediateLayers(nn.Module):
-    def __init__(self, feature_model, n_last_blocks, autocast_ctx, is_3d=True):
+    def __init__(self, feature_model, n_last_blocks, autocast_ctx, is_3d=True, fine_tune=False):
         super().__init__()
         self.feature_model = feature_model
-        self.feature_model.eval()
+        self.fine_tune = fine_tune
+        if self.fine_tune:
+            self.feature_model.train()
+        else:
+            self.feature_model.eval()
         self.n_last_blocks = n_last_blocks
         self.autocast_ctx = autocast_ctx
         self.is_3d = is_3d
@@ -56,9 +60,15 @@ class ModelWithIntermediateLayers(nn.Module):
 
     def forward_(self, images):
         with self.autocast_ctx():
-            features = self.feature_model.get_intermediate_layers(
-                images, self.n_last_blocks, return_class_token=True
-            )
+            if self.fine_tune:
+                features = self.feature_model.get_intermediate_layers(
+                    images, self.n_last_blocks, return_class_token=True
+                )
+            else:
+                with torch.no_grad():
+                    features = self.feature_model.get_intermediate_layers(
+                        images, self.n_last_blocks, return_class_token=True
+                    )
         return features
     
     def forward(self, images):
