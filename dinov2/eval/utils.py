@@ -338,12 +338,13 @@ def make_datasets(train_dataset_str, test_dataset_str, val_dataset_str=None,
         target_transform=train_target_transform
     )
     if val_dataset_str == None:
-        val_dataset_ = make_dataset(
-            dataset_str=train_dataset_str.replace("TRAIN", "VAL"),
-            transform=train_transform,
-            target_transform=train_target_transform
-        )
-        train_dataset = torch.utils.data.ConcatDataset([train_dataset, val_dataset_])
+        if train_dataset_str.replace("TRAIN", "VAL") != test_dataset_str:
+            val_dataset_ = make_dataset(
+                dataset_str=train_dataset_str.replace("TRAIN", "VAL"),
+                transform=train_transform,
+                target_transform=train_target_transform
+            )
+            train_dataset = torch.utils.data.ConcatDataset([train_dataset, val_dataset_])
         val_dataset = None
         logger.info("Train and val datasets have been combined.")
     else:

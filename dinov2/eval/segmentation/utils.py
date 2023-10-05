@@ -47,43 +47,43 @@ class LinearDecoder(torch.nn.Module):
     """Linear decoder head"""
     DECODER_TYPE = "linear"
 
-    def __init__(self, in_channels, tokenW=32, tokenH=32, num_classes=3, is_3d=False):
+    def __init__(self, in_channels, num_classes=3, is_3d=False, image_size=448):
         super().__init__()
 
+        self.image_size = image_size
         self.in_channels = in_channels
-        self.width = tokenW
-        self.height = tokenH
+        self.width = self.height = image_size // 14
         self.decoder = torch.nn.Conv2d(in_channels, num_classes, (1,1))
         self.decoder.weight.data.normal_(mean=0.0, std=0.01)
         self.decoder.bias.data.zero_()
         self.is_3d = is_3d
 
-    def forward_3d(self, embeddings, up_size, vectorized=False):
+    def forward_3d(self, embeddings, vectorized=False):
         batch_outputs = []
         for batch_embeddings in embeddings:
             if vectorized:
-                batch_outputs.append(self.forward_(torch.stack(batch_embeddings, up_size).squeeze()))
+                batch_outputs.append(self.forward_(torch.stack(batch_embeddings).squeeze()))
             else:
                 batch_outputs.append(
-                    torch.stack([self.forward_(slice_embedding, up_size) for slice_embedding in batch_embeddings]).squeeze()
+                    torch.stack([self.forward_(slice_embedding) for slice_embedding in batch_embeddings]).squeeze()
                     )
         return batch_outputs
 
-    def forward_(self, embeddings, up_size):
+    def forward_(self, embeddings):
         embeddings = embeddings.reshape(-1, self.height, self.width, self.in_channels)
         embeddings = embeddings.permute(0,3,1,2)
 
         output = self.decoder(embeddings)
         
         # Upsample (interpolate) output/logit map.
-        output = torch.nn.functional.interpolate(output, size=up_size, mode="bilinear", align_corners=False)
+        output = torch.nn.functional.interpolate(output, size=self.image_size, mode="bilinear", align_corners=False)
 
         return output
     
-    def forward(self, embeddings, up_size=448):
+    def forward(self, embeddings):
         if self.is_3d:
-            return self.forward_3d(embeddings, up_size)
-        return self.forward_(embeddings, up_size)
+            return self.forward_3d(embeddings)
+        return self.forward_(embeddings)
     
 class UNetDecoderUpBlock(nn.Module):
     def __init__(self, in_channels, out_channels, embed_dim=1024) -> None:
@@ -182,8 +182,9 @@ def setup_decoders(embed_dim, learning_rates, num_classes=14, decoder_type="line
     optim_param_groups = []
     for lr in learning_rates:
         if decoder_type == "linear":
+            print(num_classes)
             decoder = LinearDecoder(
-                embed_dim, num_classes=num_classes, is_3d=is_3d
+                embed_dim, num_classes=num_classes, is_3d=is_3d, image_size=image_size
             )
         elif decoder_type == "unet":
             decoder = UNetDecoder(

@@ -31,6 +31,7 @@ class _Split(Enum):
         }
         return split_lengths[self]
 
+
 class BTCV(MedicalVisionDataset):
     Split = _Split
 
@@ -46,30 +47,19 @@ class BTCV(MedicalVisionDataset):
         super().__init__(split, root, transforms, transform, target_transform)
 
         self._image_path = self._split_dir + os.sep + "img"
-        self.images = os.listdir(self._image_path)
+        self.images = np.array(os.listdir(self._image_path))
 
         self.labels = None
         if self._split != _Split.TEST:
             self._labels_path = self._split_dir + os.sep + "label"
-            self.labels = os.listdir(self._labels_path)
+            self.labels = np.array(os.listdir(self._labels_path))
     
-        self.class_id_mapping = {    
-            0: "background",
-            1: "spleen",
-            2: "rkid",
-            3: "lkid",
-            4: "gall",
-            5: "eso",
-            6: "liver",
-            7: "sto",
-            8: "aorta",
-            9: "IVC",
-            10: "veins",
-            11: "pancreas",
-            12: "rad",
-            13: "lad"
-        }
-        self.class_names = list(self.class_id_mapping.keys())
+        self.class_id_mapping = pd.DataFrame([i for i in range(14)],
+                                    index=["background", "spleen", "rkid", "lkid", "gall", "eso",
+                                           "liver", "sto", "aorta", "IVC", "veins", "pancreas",
+                                           "rad", "lad"],
+                                    columns=["class_id"])
+        self.class_names = np.array(self.class_id_mapping.index)
 
     def _check_size(self):
         num_of_images = len(os.listdir(self._split_dir + os.sep + "img"))
@@ -85,14 +75,26 @@ class BTCV(MedicalVisionDataset):
         image_folder_path = self._image_path + os.sep + self.images[index]
         image_path = image_folder_path + os.sep + os.listdir(image_folder_path)[0]  
 
-        nifti_image = nib.load(image_path)
-        image = nifti_image.get_fdata()
+        if self._split == _Split.TRAIN:
+            nifti_image = nib.load(image_path, mmap=False)
+            proxy = nifti_image.dataobj
+            slice_indices = proxy.shape[-1] - 1
+            start = np.random.randint(0, slice_indices-10)
+            indices = list(range(start, start+10))
+            image = np.array([proxy[..., i] for i in indices])
+        else:
+            nifti_image = nib.load(image_path)
+            image = nifti_image.get_fdata()
+
         image = np.stack((image,)*3, axis=0)
-        image = torch.from_numpy(image).permute(3, 0, 1, 2).float()
+        image = torch.from_numpy(image).permute(1, 0, 2, 3).float()
 
         if return_affine_matrix:
             affine = nifti_image.affine
             return image, affine
+        
+        # pre-preprocess
+        image = torch.clamp(image, max=1024)
         return image
     
     def get_target(self, index: int) -> Tuple[np.ndarray, torch.Tensor, None]:
@@ -101,10 +103,19 @@ class BTCV(MedicalVisionDataset):
 
         label_folder_path = self._labels_path + os.sep + self.labels[index]
         label_path = label_folder_path + os.sep + os.listdir(label_folder_path)[0]  
+
+        if self._split == _Split.TRAIN:
+            nifti_image = nib.load(label_path, mmap=False)
+            proxy = nifti_image.dataobj
+            slice_indices = proxy.shape[-1] - 1
+            start = np.random.randint(0, slice_indices-10)
+            indices = list(range(start, start+10))
+            target = np.array([proxy[..., i] for i in indices])
+        else:
+            target = nib.load(label_path).get_fdata()
         
-        target = nib.load(label_path).get_fdata()
         target = torch.from_numpy(target).unsqueeze(0)
-        target = target.permute(3, 0, 1, 2)
+        target = target.permute(1, 0, 2, 3)
     
         return target
     
@@ -122,7 +133,8 @@ class BTCV(MedicalVisionDataset):
             for i in range(len(image)):
                 np.random.seed(seed), torch.manual_seed(seed) 
                 transformed_image.append(self.transform(image[i]))
-            image = torch.stack(transformed_image, dim=0)
+            image = torch.stack(transformed_image, dim=0).squeeze()
+            print("after transform", image.shape)
 
         if self.target_transform is not None and target is not None:
             transformed_target = []
@@ -132,7 +144,7 @@ class BTCV(MedicalVisionDataset):
             target = torch.stack(transformed_target, dim=0).squeeze()
 
         return image, target
-
+    
 def make_splits(data_dir = "/mnt/z/data/Abdomen/RawData"):
     train_path = data_dir + os.sep + "train"
     test_path = data_dir + os.sep + "test"

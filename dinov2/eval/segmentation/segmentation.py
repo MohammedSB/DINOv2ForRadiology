@@ -287,7 +287,9 @@ def eval_decoders(
 
         if is_3d:
             outputs = {m: torch.cat(output, dim=0) for m, output in outputs.items()}
+            print(list(outputs.values())[0].shape)
             labels = torch.cat(labels, dim=0)
+            print(labels.shape)
 
         labels = labels.cuda(non_blocking=True).type(torch.int64)
         losses = {f"loss_{k}": DiceLoss(softmax=True, to_onehot_y=True)(v, labels.unsqueeze(1)).requires_grad_(True) for k, v in outputs.items()}
@@ -446,7 +448,7 @@ def run_eval_segmentation(
         is_3d=is_3d
     )
 
-    if val_dataset_str != None: # retrain model with validation set.
+    if val_dataset != None: # retrain model with validation set.
 
         start_iter = 1
 
