@@ -63,7 +63,7 @@ class BTCV(MedicalVisionDataset):
 
     def _check_size(self):
         num_of_images = len(os.listdir(self._split_dir + os.sep + "img"))
-        print(f"{self._split.length - num_of_images} scans are missing from {self._split.value.upper()} set")
+        logging.info(f"{self._split.length - num_of_images} scans are missing from {self._split.value.upper()} set")
 
     def get_num_classes(self) -> int:
         return len(self.class_names)
@@ -94,7 +94,7 @@ class BTCV(MedicalVisionDataset):
             return image, affine
         
         # pre-preprocess
-        image = torch.clamp(image, max=1024)
+        image = torch.clamp(image, max=600)
         return image
     
     def get_target(self, index: int) -> Tuple[np.ndarray, torch.Tensor, None]:
@@ -134,7 +134,6 @@ class BTCV(MedicalVisionDataset):
                 np.random.seed(seed), torch.manual_seed(seed) 
                 transformed_image.append(self.transform(image[i]))
             image = torch.stack(transformed_image, dim=0).squeeze()
-            print("after transform", image.shape)
 
         if self.target_transform is not None and target is not None:
             transformed_target = []
