@@ -31,7 +31,6 @@ class _Split(Enum):
         }
         return split_lengths[self]
 
-
 class BTCV(MedicalVisionDataset):
     Split = _Split
 
@@ -85,6 +84,7 @@ class BTCV(MedicalVisionDataset):
         else:
             nifti_image = nib.load(image_path)
             image = nifti_image.get_fdata()
+            image = image.transpose(2, 0, 1)
 
         image = np.stack((image,)*3, axis=0)
         image = torch.from_numpy(image).permute(1, 0, 2, 3).float()
@@ -113,8 +113,9 @@ class BTCV(MedicalVisionDataset):
             target = np.array([proxy[..., i] for i in indices])
         else:
             target = nib.load(label_path).get_fdata()
+            target = target.transpose(2, 0, 1)
         
-        target = torch.from_numpy(target).unsqueeze(0)
+        target = torch.from_numpy(target).unsqueeze(0).long()
         target = target.permute(1, 0, 2, 3)
     
         return target

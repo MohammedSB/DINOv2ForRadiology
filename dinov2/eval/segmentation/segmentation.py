@@ -290,7 +290,8 @@ def eval_decoders(
             labels = torch.cat(labels, dim=0)
 
         labels = labels.cuda(non_blocking=True).type(torch.int64)
-        losses = {f"loss_{k}": DiceLoss(softmax=True, to_onehot_y=True)(v, labels.unsqueeze(1)).requires_grad_(True) for k, v in outputs.items()}
+        losses = {f"loss_{k}": (DiceLoss(softmax=True, to_onehot_y=True)(v, labels.unsqueeze(1)).requires_grad_(True) + 
+                                nn.CrossEntropyLoss()(v, labels)) for k, v in outputs.items()}
         
         loss = sum(losses.values())
 

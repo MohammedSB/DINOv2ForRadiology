@@ -128,7 +128,7 @@ def make_segmentation_train_transforms(
         transforms.Resize((resize_size, resize_size), interpolation=interpolation)
         ]
     target_transforms_list = [
-        transforms.Resize((resize_size, resize_size), interpolation=interpolation)
+        transforms.Resize((resize_size, resize_size), interpolation=transforms.InterpolationMode.NEAREST_EXACT)
         ]
     if vflip_prob > 0:
         train_transforms_list.append(transforms.RandomVerticalFlip(vflip_prob))
@@ -164,7 +164,7 @@ def make_segmentation_eval_transforms(
         make_normalize_transform(mean=mean, std=std)
     ]
     target_transform_list = [
-        transforms.Resize((resize_size, resize_size), interpolation=interpolation),
+        transforms.Resize((resize_size, resize_size), interpolation=transforms.InterpolationMode.NEAREST_EXACT),
         MaybeToTensor(),
     ] 
     return (transforms.Compose(train_transforms_list),
