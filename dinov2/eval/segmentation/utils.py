@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 
 import dinov2.distributed as distributed
-from dinov2.eval.utils import is_zero_matrix
+from dinov2.eval.utils import is_padded_matrix
 from torchvision.transforms import transforms
 
 class DINOV2Encoder(torch.nn.Module):
@@ -23,7 +23,7 @@ class DINOV2Encoder(torch.nn.Module):
         for batch_scans in x: # calculate the features for every scan in all scans of the batch
             scans = []
             for scan in batch_scans:
-                if not is_zero_matrix(scan): scans.append(self.forward_(scan.unsqueeze(0)))
+                if not is_padded_matrix(scan): scans.append(self.forward_(scan.unsqueeze(0)))
             batch_features.append(scans)
         return batch_features
 

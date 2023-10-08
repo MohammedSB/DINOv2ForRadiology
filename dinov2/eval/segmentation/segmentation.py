@@ -288,6 +288,8 @@ def eval_decoders(
         if is_3d:
             outputs = {m: torch.cat(output, dim=0) for m, output in outputs.items()}
             labels = torch.cat(labels, dim=0)
+            print(list(outputs.values())[0].shape)
+            print(labels.shape)
 
         labels = labels.cuda(non_blocking=True).type(torch.int64)
         losses = {f"loss_{k}": (DiceLoss(softmax=True, to_onehot_y=True)(v, labels.unsqueeze(1)).requires_grad_(True) + 

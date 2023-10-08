@@ -420,12 +420,13 @@ def collate_fn_3d(batch):
     # batch is a list of tuples where each tuple is (video, label)
     videos, labels = zip(*batch)
     hw_size = videos[0].size()[-1]
+    channels = videos[0].size()[-3]
 
     # Get the length of the longest video
     max_len = max(video.size(0) for video in videos)
 
     # Create a tensor to hold the padded videos
-    padded_videos = torch.zeros(len(videos), max_len, 3, hw_size, hw_size)
+    padded_videos = torch.full((len(videos), max_len, channels, hw_size, hw_size), -100)
 
     # Pad each video
     for i, video in enumerate(videos):
@@ -433,5 +434,5 @@ def collate_fn_3d(batch):
 
     return padded_videos, labels
 
-def is_zero_matrix(matrix):
-    return torch.allclose(matrix, torch.zeros_like(matrix))
+def is_padded_matrix(matrix):
+    return torch.allclose(matrix, torch.full_like(matrix, -100))
