@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from dinov2.eval.utils import is_zero_matrix
+from dinov2.eval.utils import is_padded_matrix
 import dinov2.distributed as distributed
 
 def create_linear_input(x_tokens_list, use_n_blocks, use_avgpool):
