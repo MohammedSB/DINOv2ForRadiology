@@ -288,8 +288,6 @@ def eval_decoders(
         if is_3d:
             outputs = {m: torch.cat(output, dim=0) for m, output in outputs.items()}
             labels = torch.cat(labels, dim=0)
-            print(list(outputs.values())[0].shape)
-            print(labels.shape)
 
         labels = labels.cuda(non_blocking=True).type(torch.int64)
         losses = {f"loss_{k}": (DiceLoss(softmax=True, to_onehot_y=True)(v, labels.unsqueeze(1)).requires_grad_(True) + 
@@ -428,17 +426,6 @@ def run_eval_segmentation(
                                                                             val_dataset=val_dataset, sampler_type=sampler_type, seed=seed,
                                                                             start_iter=start_iter, batch_size=batch_size, num_workers=num_workers,
                                                                             collate_fn=collate_fn)
-    dataiter = iter(test_data_loader)
-    single_instance = next(dataiter)
-    single_data, single_label = single_instance
-    print("BEFOREEE")
-    print(single_data.shape)
-    print(single_label[0].shape)
-    print(single_label[1].shape)
-    print(single_label[2].shape)
-    print(single_label[3].shape)
-
-    sys.exit()
 
     metrics_file_path = os.path.join(output_dir, "results_eval_linear.json")
     val_results_dict, feature_model, decoders, iteration = eval_decoders(

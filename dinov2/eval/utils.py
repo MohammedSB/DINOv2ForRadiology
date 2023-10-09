@@ -96,13 +96,6 @@ def evaluate(
     header = "Test:"
 
     for samples, targets, *_ in metric_logger.log_every(data_loader, 10, header):
-        print(samples.shape)
-        print(targets[0].shape)
-        print(targets[1].shape)
-        print(targets[2].shape)
-        print(targets[3].shape)
-
-        break
         
         outputs = model(samples.to(device))
         if isinstance(targets, torch.Tensor):
