@@ -46,12 +46,12 @@ class BTCV(MedicalVisionDataset):
         super().__init__(split, root, transforms, transform, target_transform)
 
         self._image_path = self._split_dir + os.sep + "img"
-        self.images = np.array(os.listdir(self._image_path)).sort()
+        self.images = np.sort(np.array(os.listdir(self._image_path)))
 
         self.labels = None
         if self._split != _Split.TEST:
             self._labels_path = self._split_dir + os.sep + "label"
-            self.labels = np.array(os.listdir(self._labels_path)).sort()
+            self.labels = np.sort(np.array(os.listdir(self._labels_path)))
     
         self.class_id_mapping = pd.DataFrame([i for i in range(14)],
                                     index=["background", "spleen", "rkid", "lkid", "gall", "eso",

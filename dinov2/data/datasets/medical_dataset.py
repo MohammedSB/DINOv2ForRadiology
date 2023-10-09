@@ -23,7 +23,7 @@ class MedicalVisionDataset(VisionDataset):
         self._define_split_dir()
         self._check_size()
         
-        self.images = np.array(os.listdir(self._split_dir)).sort()
+        self.images = np.sort(np.array(os.listdir(self._split_dir)))
 
     @property
     def split(self):
