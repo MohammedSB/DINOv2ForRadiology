@@ -93,7 +93,7 @@
 PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/segmentation.py \
     --gpus 1 \
     --nodes 1 \
-    --batch-size 1 \
+    --batch-size 4 \
     --epochs 50 \
     --eval-period-epochs 10 \
     --learning-rates 1e-2 \

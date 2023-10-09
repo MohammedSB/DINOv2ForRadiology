@@ -429,8 +429,6 @@ def run_eval_linear(
     else:
         max_iter = epoch_length * epochs 
     
-
-
     if fine_tune:
         logger.info("Finetuning backbone")
         optim_param_groups.append({'params': feature_model.parameters(), 'lr':3.5e-4})

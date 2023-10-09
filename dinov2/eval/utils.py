@@ -54,7 +54,7 @@ class ModelWithIntermediateLayers(nn.Module):
         for batch_scans in images: # calculate the features for every scan in all scans of the batch
             scans = []
             for scan in batch_scans:
-                if not is_zero_matrix(scan): scans.append(self.forward_(scan.unsqueeze(0)))
+                if not is_padded_matrix(scan): scans.append(self.forward_(scan.unsqueeze(0)))
             batch_features.append(scans)
         return batch_features
 
@@ -96,6 +96,13 @@ def evaluate(
     header = "Test:"
 
     for samples, targets, *_ in metric_logger.log_every(data_loader, 10, header):
+        print(samples.shape)
+        print(targets[0].shape)
+        print(targets[1].shape)
+        print(targets[2].shape)
+        print(targets[3].shape)
+
+        break
         
         outputs = model(samples.to(device))
         if isinstance(targets, torch.Tensor):
@@ -426,7 +433,7 @@ def collate_fn_3d(batch):
     max_len = max(video.size(0) for video in videos)
 
     # Create a tensor to hold the padded videos
-    padded_videos = torch.full((len(videos), max_len, channels, hw_size, hw_size), -100)
+    padded_videos = torch.full((len(videos), max_len, channels, hw_size, hw_size), -100.0)
 
     # Pad each video
     for i, video in enumerate(videos):
@@ -435,4 +442,4 @@ def collate_fn_3d(batch):
     return padded_videos, labels
 
 def is_padded_matrix(matrix):
-    return torch.allclose(matrix, torch.full_like(matrix, -100))
+    return torch.allclose(matrix, torch.full_like(matrix, -100.0))
