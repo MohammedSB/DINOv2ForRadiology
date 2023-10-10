@@ -131,7 +131,7 @@ class LinearPostprocessor(nn.Module):
 
     def forward(self, samples, targets):
         logits = self.decoder(samples) 
-        if isinstance(logits, list): # if 3D output
+        if isinstance(logits, list) or (isinstance(logits, torch.Tensor) and logits.size() > 4) : # if 3D output
             logits = torch.cat(logits, dim=0)
             targets = torch.cat(targets, dim=0).cuda()
 
