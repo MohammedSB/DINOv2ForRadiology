@@ -27,16 +27,23 @@ from dinov2.logging import MetricLogger
 logger = logging.getLogger("dinov2")
 
 class Model3DWrapper(nn.Module):
-    def __init__(self, model) -> None:
+    def __init__(self, model, per_slice=False) -> None:
         super().__init__()
         self.model = model
+        self.per_slice = per_slice
 
     def forward(self, x):
         batch_outputs = []
-        for batch in x: 
-            batch_outputs.append(
-                torch.stack([self.model(slice_embedding) for slice_embedding in batch]).squeeze()
+        for slices in x: 
+            if self.per_slice:
+                batch_outputs.append(
+                    torch.stack([self.model(slice_) for slice_ in slices], dim=0).squeeze()
                 )
+            else:
+                batch_outputs.append(
+                    self.model(slices)
+                )
+        batch_outputs = torch.stack(batch_outputs, dim=0)
         return batch_outputs
 
 class ModelWithNormalize(torch.nn.Module):

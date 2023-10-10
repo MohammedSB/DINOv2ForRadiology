@@ -269,7 +269,7 @@ def eval_decoders(
     resume=True,
     segmentor_fpath=None,
     is_3d=False,
-    loss_function=DiceLoss
+    loss_function=DiceLoss()
 ):
     checkpointer = Checkpointer(decoders, output_dir, optimizer=optimizer, scheduler=scheduler)
     start_iter = checkpointer.resume_or_load(segmentor_fpath or "", resume=resume).get("iteration", 0) + 1
@@ -293,7 +293,7 @@ def eval_decoders(
         outputs = decoders(features)
 
         if is_3d:
-            outputs = {m: torch.cat(output, dim=0) for m, output in outputs.items()}
+            outputs = {m: torch.cat([batch_outputs for batch_outputs in output], dim=0) for m, output in outputs.items()}
             labels = torch.cat(labels, dim=0)
 
         labels = labels.cuda(non_blocking=True).type(torch.int64)
@@ -427,10 +427,10 @@ def run_eval_segmentation(
     checkpointer = Checkpointer(decoders, output_dir, optimizer=optimizer, scheduler=scheduler)
     start_iter = checkpointer.resume_or_load(segmentor_fpath or "", resume=resume).get("iteration", 0) + 1
     if loss_function == "combined":
-        loss_function = DiceCELoss
+        loss_function = DiceCELoss(softmax=True, to_onehot_y=True)
         logging.info("Using combined dice and crossentropy loss")
     else:
-        loss_function = DiceLoss
+        loss_function = DiceLoss(softmax=True, to_onehot_y=True)
         logging.info("Using dice loss")
 
     # Make dataloaders.

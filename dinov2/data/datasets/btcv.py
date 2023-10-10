@@ -78,8 +78,8 @@ class BTCV(MedicalVisionDataset):
             nifti_image = nib.load(image_path, mmap=False)
             proxy = nifti_image.dataobj
             slice_indices = proxy.shape[-1] - 1
-            start = np.random.randint(0, slice_indices-50)
-            indices = list(range(start, start+50))
+            start = np.random.randint(0, slice_indices-10)
+            indices = list(range(start, start+10))
             image = np.array([proxy[..., i] for i in indices])
         else:
             nifti_image = nib.load(image_path)

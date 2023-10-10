@@ -34,25 +34,11 @@ class LinearClassifier(nn.Module):
         self.linear.bias.data.zero_()
         self.is_3d = is_3d
 
-    def forward_3d(self, inputs):
-        outputs_per_batch = []
-        for batch in inputs:
-            outputs_per_batch.append(self.forward_(batch))
-        outputs = torch.stack(outputs_per_batch).squeeze()
-        return outputs
-    
-    def forward_(self, inputs):
+    def forward(self, x):
         output = torch.stack( # If 3D, take average of all slices.
-            [create_linear_input(image, self.use_n_blocks, self.use_avgpool) for image in inputs]
+            [create_linear_input(image, self.use_n_blocks, self.use_avgpool) for image in x]
             ).mean(dim=0).squeeze()
-        return output
-    
-    def forward(self, images):
-        if self.is_3d: output = self.forward_3d(images)
-        else: output = self.forward_(images)
-
         return self.linear(output).squeeze()
-
 
 class AllClassifiers(nn.Module):
     def __init__(self, classifiers_dict):

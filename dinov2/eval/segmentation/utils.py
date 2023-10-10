@@ -56,20 +56,8 @@ class LinearDecoder(torch.nn.Module):
         self.decoder = torch.nn.Conv2d(in_channels, num_classes, (1,1))
         self.decoder.weight.data.normal_(mean=0.0, std=0.01)
         self.decoder.bias.data.zero_()
-        self.is_3d = is_3d
-
-    def forward_3d(self, embeddings, vectorized=False):
-        batch_outputs = []
-        for batch_embeddings in embeddings:
-            if vectorized:
-                batch_outputs.append(self.forward_(torch.stack(batch_embeddings).squeeze()))
-            else:
-                batch_outputs.append(
-                    torch.stack([self.forward_(slice_embedding) for slice_embedding in batch_embeddings]).squeeze()
-                    )
-        return batch_outputs
-
-    def forward_(self, embeddings):
+    
+    def forward(self, embeddings):
         embeddings = embeddings.reshape(-1, self.height, self.width, self.in_channels)
         embeddings = embeddings.permute(0,3,1,2)
 
@@ -79,11 +67,6 @@ class LinearDecoder(torch.nn.Module):
         output = torch.nn.functional.interpolate(output, size=self.image_size, mode="bilinear", align_corners=False)
 
         return output
-    
-    def forward(self, embeddings):
-        if self.is_3d:
-            return self.forward_3d(embeddings)
-        return self.forward_(embeddings)
     
 class UNetDecoderUpBlock(nn.Module):
     def __init__(self, in_channels, out_channels, embed_dim=1024) -> None:
@@ -161,11 +144,11 @@ class LinearPostprocessor(nn.Module):
         }
 
 class AllDecoders(nn.Module):
-    def __init__(self, decoders_dict):
+    def __init__(self, decoders_dict, decoder_type):
         super().__init__()
         self.decoders_dict = nn.ModuleDict()
         self.decoders_dict.update(decoders_dict)
-        self.decoder_type = list(decoders_dict.values())[0].DECODER_TYPE
+        self.decoder_type = decoder_type
 
     def forward(self, inputs):
         return {k: v.forward(inputs) for k, v in self.decoders_dict.items()}
@@ -190,14 +173,14 @@ def setup_decoders(embed_dim, learning_rates, num_classes=14, decoder_type="line
                 in_channels=embed_dim, out_channels=num_classes, image_size=image_size, resize_image=True
             )
         if is_3d:
-            decoder = Model3DWrapper(decoder)
+            decoder = Model3DWrapper(decoder, per_slice=True)
         decoder = decoder.cuda()
         decoders_dict[
             f"{decoder_type}:lr={lr:.10f}".replace(".", "_")
         ] = decoder
         optim_param_groups.append({"params": decoder.parameters(), "lr": lr})
 
-    decoders = AllDecoders(decoders_dict)
+    decoders = AllDecoders(decoders_dict, decoder_type)
     if distributed.is_enabled():
         decoders = nn.parallel.DistributedDataParallel(decoders)
 
