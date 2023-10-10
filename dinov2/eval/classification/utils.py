@@ -32,7 +32,6 @@ class LinearClassifier(nn.Module):
         self.linear = nn.Linear(out_dim, num_classes)
         self.linear.weight.data.normal_(mean=0.0, std=0.01)
         self.linear.bias.data.zero_()
-        self.is_3d = is_3d
 
     def forward(self, x):
         output = torch.stack( # If 3D, take average of all slices.

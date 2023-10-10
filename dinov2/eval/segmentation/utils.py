@@ -188,6 +188,7 @@ def setup_decoders(embed_dim, learning_rates, num_classes=14, decoder_type="line
 
 def save_test_results(feature_model, decoder, dataset, output_dir):
     test_results_path = output_dir + os.sep + "test_results" 
+    decoder.resize_image = False
     os.makedirs(test_results_path, exist_ok=True)
     for i, (img, _) in enumerate(dataset):
 

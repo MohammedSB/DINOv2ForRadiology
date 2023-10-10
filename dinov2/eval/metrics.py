@@ -71,6 +71,7 @@ def build_metric(metric_type: MetricType, *, num_classes: int, labels = None, ks
         return build_segmentation_metrics(
             average_type=metric_type.accuracy_averaging,
             num_labels=num_classes,
+            labels=labels
         )
     elif metric_type == MetricType.BINARY_AUROC:
         return build_binary_auroc_metric()
@@ -90,10 +91,13 @@ def build_metric(metric_type: MetricType, *, num_classes: int, labels = None, ks
     raise ValueError(f"Unknown metric type {metric_type}")
 
 
-def build_segmentation_metrics(average_type: MetricAveraging, num_labels: int = 2):
+def build_segmentation_metrics(average_type: MetricAveraging, num_labels: int=2, labels=None):
     metrics: Dict[str, Metric] = {
         "jaccard": MulticlassJaccardIndex(num_classes=num_labels, average=average_type.value, ignore_index=0),
-        "dice": Dice(num_classes=num_labels, average=average_type.value, ignore_index=0)
+        "dice": Dice(num_classes=num_labels, average=average_type.value, ignore_index=0),
+        "class-specific": MetricCollection({
+            "auroc": ClasswiseWrapper(Dice(num_labels=num_labels, average=None), labels=labels, prefix="_"),
+        })
     }
     return MetricCollection(metrics)
 
