@@ -313,13 +313,6 @@ def eval_linear(
             metric_logger.update(loss=loss.item())
             metric_logger.update(lr=optimizer.param_groups[0]["lr"])
             print("lr", optimizer.param_groups[0]["lr"])
-            i = 0
-            for name, param in feature_model.named_parameters():
-                if i == 5:  # '0.' corresponds to the first layer in the model
-                    print(name, param)
-                    break
-                else:
-                    i+=1 
 
         if iteration - start_iter > 5:
             if iteration % running_checkpoint_period == 0:
@@ -440,7 +433,6 @@ def run_eval_linear(
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iter, eta_min=0)
     checkpointer = Checkpointer(checkpoint_model, output_dir, optimizer=optimizer, scheduler=scheduler)
     
-    print("class path", classifier_fpath)
     start_iter = checkpointer.resume_or_load(classifier_fpath or "", resume=resume).get("iteration", 0) + 1
 
     sampler_type = SamplerType.INFINITE

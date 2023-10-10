@@ -19,7 +19,7 @@ import torch
 import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel
 from fvcore.common.checkpoint import Checkpointer, PeriodicCheckpointer
-from monai.losses.dice import DiceLoss
+from monai.losses.dice import DiceLoss, DiceCELoss
 
 from dinov2.data import SamplerType, make_data_loader, make_dataset
 from dinov2.data.transforms import (make_classification_eval_transform, make_classification_train_transform,
@@ -159,6 +159,11 @@ def get_args_parser(
         type=int,
         help="Size of input image",
     )
+    parser.add_argument(
+        "--loss-function",
+        type=str,
+        help="The loss function used",
+    )
     parser.set_defaults(
         train_dataset_str="MC:split=TRAIN",
         test_dataset_str="MC:split=TEST",
@@ -176,6 +181,7 @@ def get_args_parser(
         decoder_type="linear",
         shots=None,
         image_size=448,
+        loss_function="dice"
     )
     return parser
 
@@ -262,7 +268,8 @@ def eval_decoders(
     num_of_classes,
     resume=True,
     segmentor_fpath=None,
-    is_3d=False
+    is_3d=False,
+    loss_function=DiceLoss
 ):
     checkpointer = Checkpointer(decoders, output_dir, optimizer=optimizer, scheduler=scheduler)
     start_iter = checkpointer.resume_or_load(segmentor_fpath or "", resume=resume).get("iteration", 0) + 1
@@ -290,8 +297,7 @@ def eval_decoders(
             labels = torch.cat(labels, dim=0)
 
         labels = labels.cuda(non_blocking=True).type(torch.int64)
-        losses = {f"loss_{k}": (DiceLoss(softmax=True, to_onehot_y=True)(v, labels.unsqueeze(1)).requires_grad_(True) + 
-                                nn.CrossEntropyLoss()(v, labels)) for k, v in outputs.items()}
+        losses = {f"loss_{k}": loss_function(v, labels.unsqueeze(1)).requires_grad_(True) for k, v in outputs.items()}
         
         loss = sum(losses.values())
 
@@ -367,7 +373,8 @@ def run_eval_segmentation(
     segmentor_fpath=None,
     val_metric_type=MetricType.SEGMENTATION_METRICS,
     shots=None,
-    image_size=448
+    image_size=448,
+    loss_function_="dice"
 ):
     seed = 0
     torch.manual_seed(seed)
@@ -419,6 +426,12 @@ def run_eval_segmentation(
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iter, eta_min=0)
     checkpointer = Checkpointer(decoders, output_dir, optimizer=optimizer, scheduler=scheduler)
     start_iter = checkpointer.resume_or_load(segmentor_fpath or "", resume=resume).get("iteration", 0) + 1
+    if loss_function_ == "combined":
+        loss_function = DiceCELoss
+        logging.info("Using combined dice and crossentropy loss")
+    else:
+        loss_function = DiceLoss
+        logging.info("Using dice loss")
 
     # Make dataloaders.
     sampler_type = SamplerType.INFINITE
@@ -445,7 +458,8 @@ def run_eval_segmentation(
         num_of_classes=num_of_classes,
         resume=resume,
         segmentor_fpath=segmentor_fpath,
-        is_3d=is_3d
+        is_3d=is_3d,
+        loss_function=loss_function
     )
 
     if val_dataset != None: # retrain model with validation set.
@@ -550,6 +564,7 @@ def main(args):
         segmentor_fpath=args.segmentor_fpath,
         val_metric_type=args.val_metric_type,
         image_size=args.image_size,
+        loss_function=args.loss_function
     )
     if args.shots != None:
         for shot in args.shots:
