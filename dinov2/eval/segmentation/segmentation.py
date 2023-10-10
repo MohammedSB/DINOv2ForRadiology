@@ -374,7 +374,7 @@ def run_eval_segmentation(
     val_metric_type=MetricType.SEGMENTATION_METRICS,
     shots=None,
     image_size=448,
-    loss_function_="dice"
+    loss_function="dice"
 ):
     seed = 0
     torch.manual_seed(seed)
@@ -426,7 +426,7 @@ def run_eval_segmentation(
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iter, eta_min=0)
     checkpointer = Checkpointer(decoders, output_dir, optimizer=optimizer, scheduler=scheduler)
     start_iter = checkpointer.resume_or_load(segmentor_fpath or "", resume=resume).get("iteration", 0) + 1
-    if loss_function_ == "combined":
+    if loss_function == "combined":
         loss_function = DiceCELoss
         logging.info("Using combined dice and crossentropy loss")
     else:

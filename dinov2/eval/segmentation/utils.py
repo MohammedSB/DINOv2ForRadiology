@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 
 import dinov2.distributed as distributed
-from dinov2.eval.utils import is_padded_matrix
+from dinov2.eval.utils import is_padded_matrix, Model3DWrapper
 from torchvision.transforms import transforms
 
 class DINOV2Encoder(torch.nn.Module):
@@ -139,7 +139,6 @@ class UNetDecoder(nn.Module):
         
         if self.resize_image:
             x5 = transforms.Resize((self.image_size, self.image_size), interpolation=transforms.InterpolationMode.BICUBIC)(x5)
-
         return x5
     
 class LinearPostprocessor(nn.Module):
@@ -184,12 +183,14 @@ def setup_decoders(embed_dim, learning_rates, num_classes=14, decoder_type="line
         if decoder_type == "linear":
             print(num_classes)
             decoder = LinearDecoder(
-                embed_dim, num_classes=num_classes, is_3d=is_3d, image_size=image_size
+                embed_dim, num_classes=num_classes, image_size=image_size
             )
         elif decoder_type == "unet":
             decoder = UNetDecoder(
                 in_channels=embed_dim, out_channels=num_classes, image_size=image_size, resize_image=True
             )
+        if is_3d:
+            decoder = Model3DWrapper(decoder)
         decoder = decoder.cuda()
         decoders_dict[
             f"{decoder_type}:lr={lr:.10f}".replace(".", "_")

@@ -26,6 +26,18 @@ from dinov2.logging import MetricLogger
 
 logger = logging.getLogger("dinov2")
 
+class Model3DWrapper(nn.Module):
+    def __init__(self, model) -> None:
+        super().__init__()
+        self.model = model
+
+    def forward(self, x):
+        batch_outputs = []
+        for batch in x: 
+            batch_outputs.append(
+                torch.stack([self.model(slice_embedding) for slice_embedding in batch]).squeeze()
+                )
+        return batch_outputs
 
 class ModelWithNormalize(torch.nn.Module):
     def __init__(self, model):
@@ -436,3 +448,11 @@ def collate_fn_3d(batch):
 
 def is_padded_matrix(matrix):
     return torch.allclose(matrix, torch.full_like(matrix, -100.0))
+
+def str2bool(v):
+    if isinstance(v, bool):
+       return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    else:
+        return False

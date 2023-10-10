@@ -28,7 +28,7 @@ from dinov2.eval.setup import get_args_parser as get_setup_args_parser
 from dinov2.eval.setup import setup_and_build_model
 from dinov2.eval.utils import (ModelWithIntermediateLayers, evaluate, apply_method_to_nested_values,
                                 make_datasets, make_data_loaders, extract_hyperparameters_from_model,
-                                is_padded_matrix, collate_fn_3d)
+                                is_padded_matrix, collate_fn_3d, str2bool)
 from dinov2.eval.classification.utils import (setup_linear_classifiers, LinearPostprocessor)
 from dinov2.logging import MetricLogger
 from dinov2.data.wrappers import FewShotDatasetWrapper
@@ -115,7 +115,7 @@ def get_args_parser(
     parser.add_argument(
         "--avgpools",
         nargs="+",
-        type=bool
+        type=str2bool
     )
     parser.add_argument(
         "--no-resume",

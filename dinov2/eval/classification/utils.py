@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from dinov2.eval.utils import is_padded_matrix
+from dinov2.eval.utils import is_padded_matrix, Model3DWrapper
 import dinov2.distributed as distributed
 
 def create_linear_input(x_tokens_list, use_n_blocks, use_avgpool):
@@ -92,8 +92,10 @@ def setup_linear_classifiers(sample_output, n_last_blocks_list, learning_rates, 
                 lr = _lr
                 out_dim = create_linear_input(sample_output, use_n_blocks=n, use_avgpool=avgpool).shape[1]
                 linear_classifier = LinearClassifier(
-                    out_dim, use_n_blocks=n, use_avgpool=avgpool, num_classes=num_classes, is_3d=is_3d
+                    out_dim, use_n_blocks=n, use_avgpool=avgpool, num_classes=num_classes
                 )
+                if is_3d:
+                    linear_classifier = Model3DWrapper(linear_classifier)
                 linear_classifier = linear_classifier.cuda()
                 linear_classifiers_dict[
                     f"linear:blocks={n}:avgpool={avgpool}:lr={lr:.10f}".replace(".", "_")
