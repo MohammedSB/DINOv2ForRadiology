@@ -191,9 +191,8 @@ def evaluate_linear_classifiers(
 ):
     logger.info("running validation !")
 
-    num_classes = num_of_classes
     labels = list(data_loader.dataset.class_names)
-    metric = build_metric(metric_type, num_classes=num_classes, labels=labels)
+    metric = build_metric(metric_type, num_classes=num_of_classes, labels=labels)
     postprocessors = {k: LinearPostprocessor(v) for k, v in linear_classifiers.classifiers_dict.items()}
     metrics = {k: metric.clone() for k in linear_classifiers.classifiers_dict}
 

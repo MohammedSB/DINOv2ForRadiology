@@ -164,7 +164,6 @@ def setup_decoders(embed_dim, learning_rates, num_classes=14, decoder_type="line
     optim_param_groups = []
     for lr in learning_rates:
         if decoder_type == "linear":
-            print(num_classes)
             decoder = LinearDecoder(
                 embed_dim, num_classes=num_classes, image_size=image_size
             )

@@ -43,7 +43,6 @@ class Model3DWrapper(nn.Module):
                 batch_outputs.append(
                     self.model(slices)
                 )
-        batch_outputs = torch.stack(batch_outputs, dim=0)
         return batch_outputs
 
 class ModelWithNormalize(torch.nn.Module):

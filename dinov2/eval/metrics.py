@@ -96,7 +96,7 @@ def build_segmentation_metrics(average_type: MetricAveraging, num_labels: int=2,
         "jaccard": MulticlassJaccardIndex(num_classes=num_labels, average=average_type.value, ignore_index=0),
         "dice": Dice(num_classes=num_labels, average=average_type.value, ignore_index=0),
         "class-specific": MetricCollection({
-            "auroc": ClasswiseWrapper(Dice(num_labels=num_labels, average=None), labels=labels, prefix="_"),
+            "auroc": ClasswiseWrapper(Dice(num_classes=num_labels, average=average_type.value), labels=list(labels), prefix="_"),
         })
     }
     return MetricCollection(metrics)

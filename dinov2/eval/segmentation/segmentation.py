@@ -293,7 +293,7 @@ def eval_decoders(
         outputs = decoders(features)
 
         if is_3d:
-            outputs = {m: torch.cat([batch_outputs for batch_outputs in output], dim=0) for m, output in outputs.items()}
+            outputs = {m: torch.cat(output, dim=0) for m, output in outputs.items()}
             labels = torch.cat(labels, dim=0)
 
         labels = labels.cuda(non_blocking=True).type(torch.int64)
