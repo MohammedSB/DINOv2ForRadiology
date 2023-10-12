@@ -10,10 +10,15 @@ from typing import Any, List, Optional, Tuple
 import torch
 import torch.backends.cudnn as cudnn
 
+from dinov2.logging import logging
 from dinov2.models import build_model_from_cfg
 from dinov2.utils.config import setup
 import dinov2.utils.utils as dinov2_utils
+from dinov2.eval.utils import ViTLargeImagenet21k
+from transformers import ViTForImageClassification
 
+
+logger = logging.getLogger("dinov2")
 
 def get_args_parser(
     description: Optional[str] = None,
@@ -60,9 +65,14 @@ def get_autocast_dtype(config):
         return torch.float
 
 
-def build_model_for_eval(config, pretrained_weights):
-    model, _ = build_model_from_cfg(config, only_teacher=True)
-    dinov2_utils.load_pretrained_weights(model, pretrained_weights, "teacher")
+def build_model_for_eval(config, pretrained_weights, backbone):
+    if backbone == "vit-large-imagenet21k":
+        model = ViTLargeImagenet21k()
+        logger.info("Using vit-large-imagenet21k backbone")
+    else:
+        model, _ = build_model_from_cfg(config, only_teacher=True)
+        dinov2_utils.load_pretrained_weights(model, pretrained_weights, "teacher")
+        logger.info("Using DINOv2 backbone")
     model.eval()
     model.cuda()
     return model
@@ -71,6 +81,6 @@ def build_model_for_eval(config, pretrained_weights):
 def setup_and_build_model(args) -> Tuple[Any, torch.dtype]:
     cudnn.benchmark = True
     config = setup(args)
-    model = build_model_for_eval(config, args.pretrained_weights)
+    model = build_model_for_eval(config, args.pretrained_weights, args.backbone)
     autocast_dtype = get_autocast_dtype(config)
     return model, autocast_dtype

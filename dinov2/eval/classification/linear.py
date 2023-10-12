@@ -32,6 +32,7 @@ from dinov2.eval.utils import (ModelWithIntermediateLayers, evaluate, apply_meth
 from dinov2.eval.classification.utils import (setup_linear_classifiers, LinearPostprocessor)
 from dinov2.logging import MetricLogger
 from dinov2.data.wrappers import FewShotDatasetWrapper
+from dinov2.models.vision_transformer import DinoVisionTransformer
 
 
 logger = logging.getLogger("dinov2")
@@ -144,6 +145,11 @@ def get_args_parser(
         type=int,
         help="Number of shots for each class.",
     )
+    parser.add_argument(
+        "--backbone",
+        type=str,
+        help="The name of the backbone model to use [dinov2, vit-large-imagenet21k]",
+    )
     parser.set_defaults(
         train_dataset_str="NIHChestXray:split=TRAIN",
         val_dataset_str=None,
@@ -161,7 +167,8 @@ def get_args_parser(
         val_metric_type=MetricType.MULTILABEL_AUROC,
         classifier_fpath=None,
         fine_tune=False,
-        shots=None
+        shots=None,
+        backbone="dinov2"
     )
     return parser
 
@@ -372,6 +379,7 @@ def run_eval_linear(
     val_metric_type=MetricType.MULTILABEL_AUROC,
     fine_tune=False,
     shots=None,
+    backbone="dinov2"
 ):
     seed = 0
     torch.manual_seed(seed)
@@ -400,7 +408,8 @@ def run_eval_linear(
     feature_model = ModelWithIntermediateLayers(model, n_last_blocks, autocast_ctx, is_3d=is_3d, fine_tune=fine_tune)
 
     sample_input = train_dataset[0][0][0] if is_3d else train_dataset[0][0] 
-    sample_output = feature_model.forward_(sample_input.unsqueeze(0).cuda())
+    sample_input = sample_input.unsqueeze(0).cuda()
+    sample_output = feature_model.forward_(sample_input)
 
     if epoch_length == None:
         epoch_length = math.ceil(train_dataset.__len__() / batch_size)
@@ -558,6 +567,7 @@ def main(args):
             classifier_fpath=args.classifier_fpath,
             val_metric_type=args.val_metric_type,
             fine_tune=args.fine_tune,
+            backbone=args.backbone,
             )
     if args.shots != None:
         for shot in args.shots:

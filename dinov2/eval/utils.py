@@ -11,6 +11,7 @@ from builtins import range
 from sklearn.neighbors import NearestNeighbors
 from skmultilearn.base import MLClassifierBase
 from skmultilearn.utils import get_matrix_in_format
+from transformers import ViTForImageClassification
 
 import numpy as np
 import scipy.sparse as sparse
@@ -52,6 +53,25 @@ class ModelWithNormalize(torch.nn.Module):
 
     def forward(self, samples):
         return nn.functional.normalize(self.model(samples), dim=1, p=2)
+    
+class ViTLargeImagenet21k(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.model = ViTForImageClassification.from_pretrained('google/vit-large-patch16-224')
+
+    def forward(self, x):
+        output = self.model.forward(x, output_hidden_states=True)
+        cls = output.hidden_states[-1][:, 0]
+        return cls
+    
+    def get_intermediate_layers(self, x, n_last_blocks, return_class_token=True):
+        layer_features = self.model.forward(x, output_hidden_states=True)
+        outputs = layer_features.hidden_states[-n_last_blocks: ]
+        class_tokens = [out[:, 0] for out in outputs]
+        outputs = [out[:, 1:] for out in outputs]
+        if return_class_token:
+            return tuple(zip(outputs, class_tokens))
+        return tuple(outputs)
 
 
 class ModelWithIntermediateLayers(nn.Module):
