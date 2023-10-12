@@ -80,7 +80,6 @@ class BTCV(MedicalVisionDataset):
             slice_indices = proxy.shape[-1] - 1
             np.random.seed(seed)
             start = np.random.randint(0, slice_indices-10,)
-            print(start)
             indices = list(range(start, start+10))
             image = np.array([proxy[..., i] for i in indices])
         else:
@@ -112,7 +111,6 @@ class BTCV(MedicalVisionDataset):
             slice_indices = proxy.shape[-1] - 1
             np.random.seed(seed)
             start = np.random.randint(0, slice_indices-10)
-            print(start)
             indices = list(range(start, start+10))
             target = np.array([proxy[..., i] for i in indices])
         else:
