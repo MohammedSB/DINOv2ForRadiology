@@ -76,35 +76,36 @@
 #     --val-dataset Shenzhen:split=VAL:root=/mnt/z/data/Shenzhen \
 #     --test-dataset Shenzhen:split=TEST:root=/mnt/z/data/Shenzhen
 
-# PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/segmentation.py \
-#     --gpus 1 \
-#     --nodes 1 \
-#     --batch-size 2 \
-#     --epochs 50 \
-#     --val-metric-type segmentation_metrics \
-#     --config-file dinov2/configs/eval/vits14_pretrain.yaml \
-#     --pretrained-weights models/dinov2_vits14_pretrain.pth \
-#     --output-dir results/NIH/dinov2_vits14/knn \
-#     --train-dataset MC:split=TRAIN:root=/mnt/z/data/MC \
-#     --val-dataset MC:split=VAL:root=/mnt/z/data/MC \
-#     --test-dataset MC:split=TEST:root=/mnt/z/data/MC
-
-
 PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/segmentation.py \
     --gpus 1 \
     --nodes 1 \
     --batch-size 2 \
     --epochs 50 \
-    --eval-period-epochs 10 \
-    --learning-rates 1e-2 \
     --image-size 224 \
-    --decoder unet \
     --val-metric-type segmentation_metrics \
     --config-file dinov2/configs/eval/vits14_pretrain.yaml \
     --pretrained-weights models/dinov2_vits14_pretrain.pth \
     --output-dir results/NIH/dinov2_vits14/knn \
-    --train-dataset BTCV:split=TRAIN:root=/mnt/z/data/BTCV \
-    --test-dataset BTCV:split=VAL:root=/mnt/z/data/BTCV
+    --train-dataset MC:split=TRAIN:root=/mnt/z/data/MC \
+    --val-dataset MC:split=VAL:root=/mnt/z/data/MC \
+    --test-dataset MC:split=TEST:root=/mnt/z/data/MC
+
+
+# PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/segmentation.py \
+#     --gpus 1 \
+#     --nodes 1 \
+#     --batch-size 2 \
+#     --epochs 50 \
+#     --eval-period-epochs 10 \
+#     --learning-rates 1e-2 \
+#     --image-size 224 \
+#     --decoder unet \
+#     --val-metric-type segmentation_metrics \
+#     --config-file dinov2/configs/eval/vits14_pretrain.yaml \
+#     --pretrained-weights models/dinov2_vits14_pretrain.pth \
+#     --output-dir results/NIH/dinov2_vits14/knn \
+#     --train-dataset BTCV:split=TRAIN:root=/mnt/z/data/BTCV \
+#     --test-dataset BTCV:split=VAL:root=/mnt/z/data/BTCV
 
 # PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/mlknn.py \
 #     --gpus 1 \

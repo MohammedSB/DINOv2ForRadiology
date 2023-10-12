@@ -297,7 +297,7 @@ def eval_decoders(
             labels = torch.cat(labels, dim=0)
 
         labels = labels.cuda(non_blocking=True).type(torch.int64)
-        losses = {f"loss_{k}": loss_function(v, labels.unsqueeze(1)).requires_grad_(True) for k, v in outputs.items()}
+        losses = {f"loss_{k}": loss_function(v, labels.unsqueeze(1)) for k, v in outputs.items()}
         
         loss = sum(losses.values())
 

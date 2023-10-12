@@ -70,7 +70,7 @@ class BTCV(MedicalVisionDataset):
     def is_3d(self) -> bool:
         return True
 
-    def get_image_data(self, index: int, return_affine_matrix=False) -> np.ndarray:
+    def get_image_data(self, index: int, seed: int, return_affine_matrix=False, ) -> np.ndarray:
         image_folder_path = self._image_path + os.sep + self.images[index]
         image_path = image_folder_path + os.sep + os.listdir(image_folder_path)[0]  
 
@@ -78,7 +78,9 @@ class BTCV(MedicalVisionDataset):
             nifti_image = nib.load(image_path, mmap=False)
             proxy = nifti_image.dataobj
             slice_indices = proxy.shape[-1] - 1
-            start = np.random.randint(0, slice_indices-10)
+            np.random.seed(seed)
+            start = np.random.randint(0, slice_indices-10,)
+            print(start)
             indices = list(range(start, start+10))
             image = np.array([proxy[..., i] for i in indices])
         else:
@@ -97,7 +99,7 @@ class BTCV(MedicalVisionDataset):
         image = torch.clamp(image, max=600)
         return image
     
-    def get_target(self, index: int) -> Tuple[np.ndarray, torch.Tensor, None]:
+    def get_target(self, index: int, seed: int) -> Tuple[np.ndarray, torch.Tensor, None]:
         if self.split == _Split.TEST:
             return None
 
@@ -108,7 +110,9 @@ class BTCV(MedicalVisionDataset):
             nifti_image = nib.load(label_path, mmap=False)
             proxy = nifti_image.dataobj
             slice_indices = proxy.shape[-1] - 1
+            np.random.seed(seed)
             start = np.random.randint(0, slice_indices-10)
+            print(start)
             indices = list(range(start, start+10))
             target = np.array([proxy[..., i] for i in indices])
         else:
@@ -125,10 +129,11 @@ class BTCV(MedicalVisionDataset):
 
     def __getitem__(self, index: int):
 
-        image = self.get_image_data(index)
-        target = self.get_target(index)
-
         seed = np.random.randint(2147483647) # make a seed with numpy generator 
+
+        image = self.get_image_data(index, seed=seed)
+        target = self.get_target(index, seed=seed)
+
         if self.transform is not None:
             transformed_image = []
             for i in range(len(image)):
