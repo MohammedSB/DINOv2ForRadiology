@@ -164,6 +164,11 @@ def get_args_parser(
         type=str,
         help="The loss function used",
     )
+    parser.add_argument(
+        "--backbone",
+        type=str,
+        help="The name of the backbone model to use [dinov2, vit-large-imagenet21k]",
+    )
     parser.set_defaults(
         train_dataset_str="MC:split=TRAIN",
         test_dataset_str="MC:split=TEST",
@@ -181,7 +186,8 @@ def get_args_parser(
         decoder_type="linear",
         shots=None,
         image_size=448,
-        loss_function="dice"
+        loss_function="dice",
+        backbone="dinov2"
     )
     return parser
 

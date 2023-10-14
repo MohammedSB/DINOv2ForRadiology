@@ -92,6 +92,11 @@ def get_args_parser(
         type=int,
         help="Number of tries",
     )
+    parser.add_argument(
+        "--backbone",
+        type=str,
+        help="The name of the backbone model to use [dinov2, vit-large-imagenet21k]",
+    )
     parser.set_defaults(
         train_dataset_str="NIHChestXray:split=TRAIN",
         test_dataset_str="NIHChestXray:split=TEST",
@@ -100,6 +105,7 @@ def get_args_parser(
         batch_size=16,
         n_per_class_list=[-1],
         n_tries=1,
+        backbone="dinov2",
     )
     return parser
 
