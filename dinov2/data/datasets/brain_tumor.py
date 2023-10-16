@@ -68,7 +68,7 @@ class BrainTumor(MedicalVisionDataset):
         image = np.where(image <= max_value, image, max_value)
         image = np.where(image <= min_value, 0., image)
 
-        image = torch.tensor(image)
+        image = torch.tensor(image).float()
 
         return image
     

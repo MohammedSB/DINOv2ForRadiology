@@ -301,7 +301,7 @@ def eval_linear(
                     losses[f"loss_{k}"] = per_class_loss / len(batch_labels) # Take average of all binary classification losses        
         else:
             loss_fn = nn.BCEWithLogitsLoss() if num_of_classes == 1 else nn.CrossEntropyLoss()
-            losses = {f"loss_{k}": loss_fn(v, labels.float()) for k, v in outputs.items()}        
+            losses = {f"loss_{k}": loss_fn(v, labels) for k, v in outputs.items()}        
 
         loss = sum(losses.values())
 
