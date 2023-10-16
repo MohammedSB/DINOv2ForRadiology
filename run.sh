@@ -21,6 +21,26 @@
 #     --val-dataset NIHChestXray:split=VAL:root=/mnt/d/data/NIH \
 #     --test-dataset NIHChestXray:split=TEST:root=/mnt/d/data/NIH \
 
+PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/linear.py \
+    --gpus 1 \
+    --nodes 1 \
+    --batch-size 4 \
+    --val-epochs 1 \
+    --eval-period-epochs 1 \
+    --epochs 100 \
+    --save-checkpoint-frequency 50 \
+    --learning-rates 1e-3 \
+    --shots 1 \
+    --n-last-blocks 1 \
+    --avgpools False \
+    --val-metric-type multilabel_auc \
+    --config-file dinov2/configs/eval/vits14_pretrain.yaml \
+    --pretrained-weights models/dinov2_vits14_pretrain.pth \
+    --output-dir results/NIH/dinov2_vits14/knn \
+    --train-dataset BrainTumor:split=TRAIN:root=/mnt/d/data/BrainTumor \
+    --val-dataset BrainTumor:split=VAL:root=/mnt/d/data/BrainTumor \
+    --test-dataset BrainTumor:split=TEST:root=/mnt/d/data/BrainTumor \
+
 
 # PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/linear.py \
 #     --gpus 1 \
@@ -89,7 +109,6 @@
 #     --val-dataset MC:split=VAL:root=/mnt/z/data/MC \
 #     --test-dataset MC:split=TEST:root=/mnt/z/data/MC
 
-
 # PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/segmentation.py \
 #     --gpus 1 \
 #     --nodes 1 \
@@ -106,13 +125,13 @@
 #     --train-dataset BTCV:split=TRAIN:root=/mnt/z/data/BTCV \
 #     --test-dataset BTCV:split=VAL:root=/mnt/z/data/BTCV
 
-PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/mlknn.py \
-    --gpus 1 \
-    --nodes 1 \
-    --batch-size 16 \
-    --nb_knn 10 20 100 200 \
-    --config-file dinov2/configs/eval/vits14_pretrain.yaml \
-    --pretrained-weights models/dinov2_vits14_pretrain.pth \
-    --output-dir results/NIH/dinov2_vits14/knn \
-    --train-dataset NIHChestXray:split=TRAIN:root=/mnt/d/data/NIH \
-    --test-dataset NIHChestXray:split=TEST:root=/mnt/d/data/NIH
+# PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/mlknn.py \
+#     --gpus 1 \
+#     --nodes 1 \
+#     --batch-size 16 \
+#     --nb_knn 10 20 100 200 \
+#     --config-file dinov2/configs/eval/vits14_pretrain.yaml \
+#     --pretrained-weights models/dinov2_vits14_pretrain.pth \
+#     --output-dir results/NIH/dinov2_vits14/knn \
+#     --train-dataset NIHChestXray:split=TRAIN:root=/mnt/d/data/NIH \
+#     --test-dataset NIHChestXray:split=TEST:root=/mnt/d/data/NIH

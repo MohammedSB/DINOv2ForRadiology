@@ -21,3 +21,4 @@ nibabel
 torchio
 monai
 transformers
+h5py
