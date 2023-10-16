@@ -25,6 +25,7 @@ class MetricType(Enum):
     MEAN_PER_CLASS_ACCURACY = "mean_per_class_accuracy"
     MULTILABEL_ACCURACY = "multilabel_accuracy"
     MULTILABEL_AUROC = "multilabel_auc"
+    MULTICLASS_AUROC = "multiclass_auc"
     BINARY_AUROC = "binary_auc"
     PER_CLASS_ACCURACY = "per_class_accuracy"
     IMAGENET_REAL_ACCURACY = "imagenet_real_accuracy"
@@ -44,6 +45,7 @@ class MetricAveraging(Enum):
     MEAN_PER_CLASS_ACCURACY = "macro"
     MULTILABEL_ACCURACY = "macro"
     MULTILABEL_AUROC = "macro"
+    MULTICLASS_AUROC = "macro"
     BINARY_AUROC = "macro"
     MULTCLASS_JACCARD = "macro"
     PER_CLASS_ACCURACY = "none"
@@ -65,6 +67,12 @@ def build_metric(metric_type: MetricType, *, num_classes: int, labels = None, ks
         return build_multilabel_auroc_metric(
             average_type=metric_type.accuracy_averaging,
             num_labels=num_classes,
+            labels=labels
+        )
+    elif metric_type == MetricType.MULTICLASS_AUROC:
+        return build_multiclass_auroc_metric(
+            average_type=metric_type.accuracy_averaging,
+            num_classes=num_classes,
             labels=labels
         )
     elif metric_type == MetricType.SEGMENTATION_METRICS:
@@ -109,6 +117,15 @@ def build_multilabel_auroc_metric(average_type: MetricAveraging, num_labels: int
         "auroc": MultilabelAUROC(num_labels=num_labels, average=average_type.value),
         "class-specific": MetricCollection({
             "auroc": ClasswiseWrapper(MultilabelAUROC(num_labels=num_labels, average=None), labels=labels, prefix="_"),
+        })
+    }
+    return MetricCollection(metrics)
+
+def build_multiclass_auroc_metric(average_type: MetricAveraging, num_classes: int, labels=None):
+    metrics: Dict[str, Metric] = {
+        "auroc": MulticlassAUROC(num_classes=num_classes, average=average_type.value),
+        "class-specific": MetricCollection({
+            "auroc": ClasswiseWrapper(MulticlassAUROC(num_classes=num_classes, average=None), labels=labels, prefix="_"),
         })
     }
     return MetricCollection(metrics)
