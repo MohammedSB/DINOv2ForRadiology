@@ -75,13 +75,8 @@ class BrainTumor(MedicalVisionDataset):
     def get_target(self, index: int) -> Tuple[np.ndarray, torch.Tensor, None]:
         label_path = self._split_dir + os.sep + self.images[index]
         file = h5py.File(label_path,'r')
-        target_index = file.get('cjdata/label')
-        target_index = int(torch.tensor(target_index).squeeze()) - 1
-        
-        target = torch.zeros(3)
-        target[target_index] = 1
-        target = target.type(torch.FloatTensor)
-
+        target = file.get('cjdata/label')
+        target = torch.tensor(target).squeeze().type(torch.LongTensor) - 1
         return target
     
     def __len__(self) -> int:
