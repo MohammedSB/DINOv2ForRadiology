@@ -107,6 +107,9 @@ class BTCVSlice(MedicalVisionDataset):
             np.random.seed(seed), torch.manual_seed(seed) 
             target = self.target_transform(target)
 
+        # Remove channel dim in target
+        target = target.squeeze()
+
         return image, target
     
 def make_splits(data_dir = "/mnt/z/data/Abdomen/RawData"):
