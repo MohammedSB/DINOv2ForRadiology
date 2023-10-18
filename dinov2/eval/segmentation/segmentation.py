@@ -479,6 +479,7 @@ def run_eval_segmentation(
                 target_transform=train_target_transform
             )
             train_dataset = torch.utils.data.ConcatDataset([train_dataset, val_dataset])
+            logger.info("Retraining model with combined dataset from train and validation")
 
         epoch_length = math.ceil(len(train_dataset) / batch_size)
         eval_period_epochs_ = eval_period_epochs * epoch_length
@@ -495,7 +496,7 @@ def run_eval_segmentation(
             drop_last=False,
             persistent_workers=False,
         )
-        logger.info("Retraining model with combined dataset from train and validation, using the most optimal hp.")
+        logger.info("Using the most optimal hp")
         hyperparameters = extract_hyperparameters_from_model(val_results_dict["best_segmentor"]["name"])
         learning_rate = hyperparameters["lr"]
       
@@ -533,7 +534,8 @@ def run_eval_segmentation(
             num_of_classes=num_of_classes,
             resume=resume,
             segmentor_fpath=segmentor_fpath,
-            is_3d=is_3d
+            is_3d=is_3d,
+            loss_function=loss_function
         )
 
     results_dict = {}
