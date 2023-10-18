@@ -85,7 +85,7 @@ class SARSCoV2CT(MedicalVisionDataset):
         return scans
     
     def get_target(self, index: int) -> int:
-        return int(int(self.images[index]) <= 79) # IDs 0-79 are positive
+        return float(int(self.images[index]) <= 79) # IDs 0-79 are positive
     
     def __len__(self) -> int:
         return len(self.images)
