@@ -59,6 +59,8 @@ class LinearPostprocessor(nn.Module):
 
     def forward(self, samples, targets):
         preds = torch.sigmoid(self.linear_classifier(samples))
+        if not isinstance(targets, torch.Tensor):
+            targets = torch.tensor(targets).cuda() 
         return {
             "preds": preds,
             "target": targets,
