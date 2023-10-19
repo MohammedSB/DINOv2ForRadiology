@@ -67,7 +67,7 @@ class SARSCoV2CT(MedicalVisionDataset):
 
     def get_image_data(self, index: int) -> np.ndarray:
         scans_path = self._split_dir + os.sep + self.images[index]
-        scans = os.listdir(scans_path)
+        scans = np.sort(np.array(os.listdir(scans_path)))
         scans = [".".join(scan.split(".")[:-1]) for scan in scans]
         
         if scans[0].isnumeric():
