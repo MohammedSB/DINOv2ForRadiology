@@ -70,23 +70,22 @@ class SARSCoV2CT(MedicalVisionDataset):
         scans = np.sort(np.array(os.listdir(scans_path)))
 
         # Remove file extensions
-        scans = np.char.split(scans, '.')
+        scans = np.char.rsplit(scans, '.', maxsplit=1)
         scans = np.array([item[0] for item in scans])
 
-        # Convert numeric strings to integers and sort
-        if scans[0].isnumeric():
-            scans = scans.astype(int)
+        if scans[0].isdigit():
+            scans.astype(int)
             scans.sort()
 
-        for i, scan in enumerate(scans):
+        tensor_scans = []
+        for scan in scans:
             
             scan = skimage.io.imread(scans_path + os.sep + str(scan) + ".png")
             scan = scan[:, :, :3]
             scan = torch.from_numpy(scan).permute(2, 0, 1).float()
 
-            scans[i] = scan 
-
-        return scans
+            tensor_scans.append(scan) 
+        return tensor_scans
     
     def get_target(self, index: int) -> int:
         return float(int(self.images[index]) <= 79) # IDs 0-79 are positive
