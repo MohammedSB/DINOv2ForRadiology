@@ -77,14 +77,14 @@ class SARSCoV2CT(MedicalVisionDataset):
             scans.astype(int)
             scans.sort()
 
-        tensor_scans = []
+        tensor_scans = ()
         for scan in scans:
             
             scan = skimage.io.imread(scans_path + os.sep + str(scan) + ".png")
             scan = scan[:, :, :3]
             scan = torch.from_numpy(scan).permute(2, 0, 1).float()
 
-            tensor_scans.append(scan) 
+            tensor_scans = tensor_scans + (scan,) 
         return tensor_scans
     
     def get_target(self, index: int) -> int:
@@ -99,6 +99,7 @@ class SARSCoV2CT(MedicalVisionDataset):
 
         seed = np.random.randint(2147483647) # make a seed with numpy generator 
         if self.transforms is not None:
+            images = list(images)
             for i in range(len(images)):
                 np.random.seed(seed), torch.manual_seed(seed) 
                 images[i], target = self.transforms(images[i], target)
