@@ -99,13 +99,11 @@ class SARSCoV2CT(MedicalVisionDataset):
 
         seed = np.random.randint(2147483647) # make a seed with numpy generator 
         if self.transforms is not None:
-            images = list(images)
-            for i in range(len(images)):
+            tensored_images = torch.tensor(self.transform(images[0])).unsqueeze(0)
+            for i in range(1, len(images)):
                 np.random.seed(seed), torch.manual_seed(seed) 
-                images[i], target = self.transforms(images[i], target)
-            images = torch.stack(images, dim=0)
-
-        return images, target
+                tensored_images = torch.cat((tensored_images, self.transform(images[i].unsqueeze(0))), dim=0)
+        return tensored_images, target
 
 def make_splits(data_dir="/mnt/z/data/SARS-CoV-2-CT"):
     i = 0
