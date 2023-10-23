@@ -387,6 +387,10 @@ def run_eval_linear(
     if test_dataset_str == None:
         raise ValueError("Test dataset cannot be None")
     
+    if "resnet" in backbone:
+         n_last_blocks_list = [1]
+         avgpools = [False]
+    
     train_transform = make_classification_train_transform()
     eval_transform = make_classification_eval_transform()
     train_dataset, val_dataset, test_dataset = make_datasets(train_dataset_str=train_dataset_str, val_dataset_str=val_dataset_str,
@@ -415,7 +419,7 @@ def run_eval_linear(
         epoch_length = math.ceil(train_dataset.__len__() / batch_size)
     eval_period_epochs_ = eval_period_epochs * epoch_length
     checkpoint_period = save_checkpoint_frequency * epoch_length
-    
+
     linear_classifiers, optim_param_groups = setup_linear_classifiers(
         sample_output=sample_output,
         n_last_blocks_list=n_last_blocks_list,

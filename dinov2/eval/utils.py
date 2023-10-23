@@ -18,6 +18,7 @@ import scipy.sparse as sparse
 
 import torch
 from torch import nn
+import torchvision
 from torchmetrics import MetricCollection
 
 from dinov2.data import DatasetWithEnumeratedTargets, SamplerType, make_data_loader, make_dataset
@@ -73,6 +74,32 @@ class ViTLargeImagenet21k(nn.Module):
         if return_class_token:
             return tuple(zip(outputs, class_tokens))
         return tuple(outputs)
+    
+class ResNet152ImageNet1k(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.model = torchvision.models.resnet152(weights=torchvision.models.ResNet152_Weights.DEFAULT)
+
+    def forward(self, x):
+        output = self.model(x)
+        return output
+    
+    def get_intermediate_layers(self, x, n_last_blocks, return_class_token=True):
+        outputs = self.model(x)
+        return [(None, outputs)]
+
+class VGG19ImageNet1k(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.model = torchvision.models.vgg19(weights=torchvision.models.VGG19_Weights.DEFAULT)
+
+    def forward(self, x):
+        output = self.model(x)
+        return output
+    
+    def get_intermediate_layers(self, x, n_last_blocks, return_class_token=True):
+        outputs = self.model(x)
+        return [(None, outputs)]
 
 
 class ModelWithIntermediateLayers(nn.Module):
