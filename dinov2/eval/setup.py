@@ -14,7 +14,7 @@ from dinov2.logging import logging
 from dinov2.models import build_model_from_cfg
 from dinov2.utils.config import setup
 import dinov2.utils.utils as dinov2_utils
-from dinov2.eval.utils import ViTLargeImagenet21k, ResNet152ImageNet1k
+from dinov2.eval.utils import ViTLargeImagenet21k, ResNet152ImageNet1k, VGG19ImageNet1k
 from transformers import ViTForImageClassification
 
 
@@ -72,6 +72,9 @@ def build_model_for_eval(config, pretrained_weights, backbone):
     elif backbone == "resnet-152-imagenet1k":
         model = ResNet152ImageNet1k()
         logger.info("Using resnet-152-imagenet1k backbone")
+    elif backbone == "vgg-19-imagenet1k":
+        model = VGG19ImageNet1k()
+        logger.info("Using vgg-19-imagenet1k backbone")
     else:
         model, _ = build_model_from_cfg(config, only_teacher=True)
         dinov2_utils.load_pretrained_weights(model, pretrained_weights, "teacher")
