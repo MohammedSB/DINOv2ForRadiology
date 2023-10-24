@@ -93,6 +93,7 @@ class VGG19ImageNet1k(nn.Module):
     def __init__(self):
         super().__init__()
         self.model = torchvision.models.vgg19(weights=torchvision.models.VGG19_Weights.DEFAULT)
+        self.model.classifier[6] = torch.nn.Identity()
 
     def forward(self, x):
         output = self.model(x)
