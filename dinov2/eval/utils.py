@@ -79,6 +79,7 @@ class ResNet152ImageNet1k(nn.Module):
     def __init__(self):
         super().__init__()
         self.model = torchvision.models.resnet152(weights=torchvision.models.ResNet152_Weights.DEFAULT)
+        self.model.fc = torch.nn.Identity()
 
     def forward(self, x):
         output = self.model(x)
