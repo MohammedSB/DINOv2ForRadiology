@@ -387,7 +387,7 @@ def run_eval_linear(
     if test_dataset_str == None:
         raise ValueError("Test dataset cannot be None")
     
-    if "resnet" in backbone:
+    if "resnet" in backbone or "vgg" in backbone:
          n_last_blocks_list = [1]
          avgpools = [False]
     

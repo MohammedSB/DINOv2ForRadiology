@@ -12,7 +12,7 @@ from sklearn.neighbors import NearestNeighbors
 from skmultilearn.base import MLClassifierBase
 from skmultilearn.utils import get_matrix_in_format
 from transformers import ViTForImageClassification
-
+import ast
 import numpy as np
 import scipy.sparse as sparse
 
@@ -477,7 +477,7 @@ def extract_hyperparameters_from_model(segmentor):
             value = float(value.replace("_", ".")) 
             hyperparameters[key] = [value]
         elif key == "avgpool":
-            hyperparameters[key] = [bool(value)]
+            hyperparameters[key] = [ast.literal_eval(value.capitalize())]
         elif key == "blocks":
             hyperparameters[key] = [int(value)]
         else:
