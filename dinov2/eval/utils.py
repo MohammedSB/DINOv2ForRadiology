@@ -60,11 +60,25 @@ class ViTLargeImagenet21k(nn.Module):
     def __init__(self):
         super().__init__()
         self.model = ViTForImageClassification.from_pretrained('google/vit-large-patch16-224')
+        self.embed_dim = 1024
+        self.norm = nn.LayerNorm(self.embed_dim, eps=1e-6)
 
     def forward(self, x):
         output = self.model.forward(x, output_hidden_states=True)
         cls = output.hidden_states[-1][:, 0]
         return cls
+    
+    def forward_features(self, x, masks=None):
+        
+        layer_features = self.model.forward(x, output_hidden_states=True)
+
+        patch_tokens = layer_features.hidden_states[-1]
+        patch_tokens = patch_tokens[:, 1:]
+
+        x_norm_patch = self.norm(patch_tokens)
+        return {
+            "x_norm_patchtokens": x_norm_patch,
+        }
     
     def get_intermediate_layers(self, x, n_last_blocks, return_class_token=True):
         layer_features = self.model.forward(x, output_hidden_states=True)
@@ -80,6 +94,20 @@ class ResNet152ImageNet1k(nn.Module):
         super().__init__()
         self.model = torchvision.models.resnet152(weights=torchvision.models.ResNet152_Weights.DEFAULT)
         self.model.fc = torch.nn.Identity()
+
+    def forward(self, x):
+        output = self.model(x)
+        return output
+    
+    def get_intermediate_layers(self, x, n_last_blocks, return_class_token=True):
+        outputs = self.model(x)
+        return [(None, outputs)]
+
+class DenseNet201ImageNet1k(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.model = torchvision.models.densenet201(weights=torchvision.models.DenseNet201_Weights.DEFAULT)
+        self.model.classifier = torch.nn.Identity()
 
     def forward(self, x):
         output = self.model(x)

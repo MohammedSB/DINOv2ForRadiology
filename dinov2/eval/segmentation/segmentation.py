@@ -380,7 +380,8 @@ def run_eval_segmentation(
     val_metric_type=MetricType.SEGMENTATION_METRICS,
     shots=None,
     image_size=448,
-    loss_function="dice"
+    loss_function="dice",
+    backbone="dinov2"
 ):
     seed = 0
     torch.manual_seed(seed)
@@ -572,7 +573,8 @@ def main(args):
         segmentor_fpath=args.segmentor_fpath,
         val_metric_type=args.val_metric_type,
         image_size=args.image_size,
-        loss_function=args.loss_function
+        loss_function=args.loss_function,
+        backbone=args.backbone
     )
     if args.shots != None:
         for shot in args.shots:
