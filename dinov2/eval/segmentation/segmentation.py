@@ -400,6 +400,7 @@ def run_eval_segmentation(
         logger.info(f"Running dataset in {shots}-shot setting")
         train_dataset = FewShotDatasetWrapper(train_dataset, shots=shots)
 
+    patch_size = 16 if "vit" in backbone else 14
     batch_size = train_dataset.__len__() if batch_size > train_dataset.__len__() else batch_size
     embed_dim = model.embed_dim
     is_3d = test_dataset.is_3d()
@@ -411,7 +412,8 @@ def run_eval_segmentation(
         num_of_classes,
         decoder_type,
         is_3d,
-        image_size=image_size
+        image_size=image_size,
+        patch_size=patch_size
     )
 
     if epoch_length == None:
@@ -507,7 +509,8 @@ def run_eval_segmentation(
             num_of_classes,
             decoder_type,
             is_3d=is_3d,
-            image_size=image_size
+            image_size=image_size,
+            patch_size=patch_size
         )
 
         output_dir += os.sep + 'optimal'

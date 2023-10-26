@@ -47,12 +47,12 @@ class LinearDecoder(torch.nn.Module):
     """Linear decoder head"""
     DECODER_TYPE = "linear"
 
-    def __init__(self, in_channels, num_classes=3, is_3d=False, image_size=448):
+    def __init__(self, in_channels, num_classes=3, image_size=448, patch_size=14):
         super().__init__()
-
+        print(patch_size)
         self.image_size = image_size
         self.in_channels = in_channels
-        self.width = self.height = image_size // 14
+        self.width = self.height = image_size // patch_size
         self.decoder = torch.nn.Conv2d(in_channels, num_classes, (1,1))
         self.decoder.weight.data.normal_(mean=0.0, std=0.01)
         self.decoder.bias.data.zero_()
@@ -95,8 +95,9 @@ class UNetDecoder(nn.Module):
     """Unet decoder head"""
     DECODER_TYPE = "unet"
 
-    def __init__(self, in_channels, out_channels, image_size=224, resize_image=False):
+    def __init__(self, in_channels, out_channels, image_size=224, resize_image=False, patch_size=14):
         super(UNetDecoder, self).__init__()
+        self.patch_size = patch_size
         self.embed_dim = in_channels
         self.image_size = image_size
         self.resize_image = resize_image
@@ -107,7 +108,7 @@ class UNetDecoder(nn.Module):
 
     def forward(self, x):
 
-        h = w = self.image_size//14
+        h = w = self.image_size//self.patch_size
 
         skip1 = x[3].reshape(-1, h, w, self.embed_dim).permute(0,3,1,2)
         skip2 = x[2].reshape(-1, h, w, self.embed_dim).permute(0,3,1,2)
@@ -156,7 +157,7 @@ class AllDecoders(nn.Module):
     def __len__(self):
         return len(self.decoders_dict)
 
-def setup_decoders(embed_dim, learning_rates, num_classes=14, decoder_type="linear", is_3d=False, image_size=224):
+def setup_decoders(embed_dim, learning_rates, num_classes=14, decoder_type="linear", is_3d=False, image_size=224, patch_size=14):
     """
     Sets up the multiple segmentors with different hyperparameters to test out the most optimal one 
     """
@@ -165,7 +166,7 @@ def setup_decoders(embed_dim, learning_rates, num_classes=14, decoder_type="line
     for lr in learning_rates:
         if decoder_type == "linear":
             decoder = LinearDecoder(
-                embed_dim, num_classes=num_classes, image_size=image_size
+                embed_dim, num_classes=num_classes, image_size=image_size, patch_size=patch_size
             )
         elif decoder_type == "unet":
             decoder = UNetDecoder(

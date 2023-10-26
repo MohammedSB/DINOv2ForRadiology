@@ -75,7 +75,11 @@ class ViTLargeImagenet21k(nn.Module):
         patch_tokens = layer_features.hidden_states[-1]
         patch_tokens = patch_tokens[:, 1:]
 
+
         x_norm_patch = self.norm(patch_tokens)
+
+        print(x_norm_patch.size())
+
         return {
             "x_norm_patchtokens": x_norm_patch,
         }
