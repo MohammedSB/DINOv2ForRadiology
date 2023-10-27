@@ -28,12 +28,13 @@ from dinov2.eval.setup import get_args_parser as get_setup_args_parser
 from dinov2.eval.setup import setup_and_build_model
 from dinov2.eval.utils import (ModelWithIntermediateLayers, evaluate, apply_method_to_nested_values,
                                 make_datasets, make_data_loaders, extract_hyperparameters_from_model,
-                                is_padded_matrix, collate_fn_3d, str2bool)
+                                is_padded_matrix, collate_fn_3d, str2bool, trainable_parameters, bitfit)
 from dinov2.eval.classification.utils import (setup_linear_classifiers, LinearPostprocessor)
 from dinov2.logging import MetricLogger
 from dinov2.data.wrappers import FewShotDatasetWrapper
 from dinov2.models.vision_transformer import DinoVisionTransformer
 
+from peft import LoraConfig, get_peft_model
 
 logger = logging.getLogger("dinov2")
 
@@ -150,6 +151,11 @@ def get_args_parser(
         type=str,
         help="The name of the backbone model to use [dinov2, vit-large-imagenet21k]",
     )
+    parser.add_argument(
+        "--peft",
+        type=str,
+        help="The name of the peft technique to use [lora]",
+    )
     parser.set_defaults(
         train_dataset_str="NIHChestXray:split=TRAIN",
         val_dataset_str=None,
@@ -168,7 +174,8 @@ def get_args_parser(
         classifier_fpath=None,
         fine_tune=False,
         shots=None,
-        backbone="dinov2"
+        backbone="dinov2",
+        peft=None
     )
     return parser
 
@@ -379,7 +386,8 @@ def run_eval_linear(
     val_metric_type=MetricType.MULTILABEL_AUROC,
     fine_tune=False,
     shots=None,
-    backbone="dinov2"
+    backbone="dinov2",
+    peft=None
 ):
     seed = 0
     torch.manual_seed(seed)
@@ -437,6 +445,30 @@ def run_eval_linear(
     if fine_tune:
         logger.info("Finetuning backbone")
         optim_param_groups.append({'params': feature_model.parameters(), 'lr':3.5e-4})
+        checkpoint_model = nn.Sequential(feature_model, linear_classifiers)
+    elif peft == "lora":
+        logger.info("Using LoRA for fine tuning")
+        config = LoraConfig(
+            r=32,
+            lora_alpha=16,
+            target_modules=["qkv"],
+            lora_dropout=0.1,
+            bias="none",
+            modules_to_save=["classifier"],
+        )
+        feature_model = get_peft_model(feature_model, config)
+        tp, ap = trainable_parameters(feature_model)
+        logger.info(f"LoRA trainable params: {tp} || all params: {ap} || trainable%: {100 * tp / ap:.2f}")
+
+        lr_ = learning_rates[0] if len(learning_rates) == 1 else 0.005
+        optim_param_groups.append({'params': feature_model.parameters(), 'lr':lr_})
+        checkpoint_model = nn.Sequential(feature_model, linear_classifiers)
+    elif peft == "bitfit":
+        feature_model = bitfit(feature_model)
+
+        logger.info(f"BitFit trainable params: {tp} || all params: {ap} || trainable%: {100 * tp / ap:.2f}")
+        lr_ = learning_rates[0] if len(learning_rates) == 1 else 0.005
+        optim_param_groups.append({'params': feature_model.parameters(), 'lr':lr_})
         checkpoint_model = nn.Sequential(feature_model, linear_classifiers)
     else:
         checkpoint_model = linear_classifiers
@@ -572,6 +604,7 @@ def main(args):
             val_metric_type=args.val_metric_type,
             fine_tune=args.fine_tune,
             backbone=args.backbone,
+            peft=args.peft
             )
     if args.shots != None:
         for shot in args.shots:

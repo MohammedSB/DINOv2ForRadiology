@@ -541,3 +541,20 @@ def str2bool(v):
         return True
     else:
         return False
+
+def trainable_parameters(model):
+    trainable_params = 0
+    all_param = 0
+    for _, param in model.named_parameters():
+        all_param += param.numel()
+        if param.requires_grad:
+            trainable_params += param.numel()
+    return trainable_params, all_param
+
+def bitfit(model):
+    for name, p in model.named_parameters():
+        if 'bias' in name:
+            p.requires_grad=True
+        else:
+            p.requires_grad=False
+    return model
