@@ -77,9 +77,6 @@ class ViTLargeImagenet21k(nn.Module):
 
 
         x_norm_patch = self.norm(patch_tokens)
-
-        print(x_norm_patch.size())
-
         return {
             "x_norm_patchtokens": x_norm_patch,
         }

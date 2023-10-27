@@ -170,7 +170,7 @@ def setup_decoders(embed_dim, learning_rates, num_classes=14, decoder_type="line
             )
         elif decoder_type == "unet":
             decoder = UNetDecoder(
-                in_channels=embed_dim, out_channels=num_classes, image_size=image_size, resize_image=True
+                in_channels=embed_dim, out_channels=num_classes, image_size=image_size, resize_image=True, patch_size=patch_size
             )
         if is_3d:
             decoder = Model3DWrapper(decoder, per_slice=True)
