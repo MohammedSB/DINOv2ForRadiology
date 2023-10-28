@@ -452,8 +452,8 @@ def run_eval_linear(
             r=32,
             lora_alpha=16,
             target_modules=["qkv"],
-            lora_dropout=0.1,
-            bias="none",
+            lora_dropout=0.05,
+            bias="lora_only",
             modules_to_save=["classifier"],
         )
         feature_model = get_peft_model(feature_model, config)
