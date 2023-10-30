@@ -22,3 +22,4 @@ torchio
 monai
 transformers
 h5py
+peft
