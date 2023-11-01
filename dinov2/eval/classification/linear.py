@@ -449,7 +449,7 @@ def run_eval_linear(
     elif peft == "lora":
         logger.info("Using LoRA for fine tuning")
         config = LoraConfig(
-            r=32,
+            r=48,
             lora_alpha=16,
             target_modules=["qkv"],
             lora_dropout=0.05,
