@@ -110,6 +110,10 @@ def get_args_parser(
         help="Learning rates to grid search.",
     )
     parser.add_argument(
+        "--backbone-learning-rate",
+        type=float,
+    )
+    parser.add_argument(
         "--n-last-blocks",
         nargs="+",
         type=int
@@ -168,6 +172,7 @@ def get_args_parser(
         save_checkpoint_frequency=5,
         eval_period_epochs=5,
         learning_rates=[1e-3, 5e-3, 1e-2, 5e-2],
+        backbone_learning_rate=1e-5,
         n_last_blocks=[1,4],
         avgpools=[True, False],
         val_metric_type=MetricType.MULTILABEL_AUROC,
@@ -377,6 +382,7 @@ def run_eval_linear(
     save_checkpoint_frequency,
     eval_period_epochs,
     learning_rates,
+    backbone_learning_rate,
     n_last_blocks_list,
     avgpools,
     autocast_dtype,
@@ -444,7 +450,7 @@ def run_eval_linear(
     
     if fine_tune:
         logger.info("Finetuning backbone")
-        optim_param_groups.append({'params': feature_model.parameters(), 'lr':3.5e-4})
+        optim_param_groups.append({'params': feature_model.parameters(), 'lr':backbone_learning_rate})
         checkpoint_model = nn.Sequential(feature_model, linear_classifiers)
     elif peft == "lora":
         logger.info("Using LoRA for fine tuning")
@@ -452,7 +458,7 @@ def run_eval_linear(
             r=48,
             lora_alpha=16,
             target_modules=["qkv"],
-            lora_dropout=0.05,
+            lora_dropout=0.1,
             bias="lora_only",
             modules_to_save=["classifier"],
         )
@@ -465,10 +471,10 @@ def run_eval_linear(
         checkpoint_model = nn.Sequential(feature_model, linear_classifiers)
     elif peft == "bitfit":
         feature_model = bitfit(feature_model)
-
+        
+        tp, ap = trainable_parameters(feature_model)
         logger.info(f"BitFit trainable params: {tp} || all params: {ap} || trainable%: {100 * tp / ap:.2f}")
-        lr_ = learning_rates[0] if len(learning_rates) == 1 else 0.005
-        optim_param_groups.append({'params': feature_model.parameters(), 'lr':lr_})
+        optim_param_groups.append({'params': feature_model.parameters(), 'lr':backbone_learning_rate})
         checkpoint_model = nn.Sequential(feature_model, linear_classifiers)
     else:
         checkpoint_model = linear_classifiers
@@ -596,6 +602,7 @@ def main(args):
             save_checkpoint_frequency=args.save_checkpoint_frequency,
             eval_period_epochs=args.eval_period_epochs,
             learning_rates=args.learning_rates,
+            backbone_learning_rate=args.backbone_learning_rate,
             n_last_blocks_list=args.n_last_blocks,
             avgpools=args.avgpools,
             autocast_dtype=autocast_dtype,
