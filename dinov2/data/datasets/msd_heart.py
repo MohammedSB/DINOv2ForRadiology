@@ -65,10 +65,6 @@ class MSDHeart(MedicalVisionDataset):
         image = np.stack((image,)*3, axis=0)
         image = torch.tensor(image).float()
 
-        # pre-preprocess
-        max_value = np.percentile(image, 95)
-        min_value = np.percentile(image, 5)
-        image = np.clip(image, min_value, max_value)
         return image
     
     def get_target(self, index: int) -> Tuple[np.ndarray, torch.Tensor, None]:        
