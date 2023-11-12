@@ -12,7 +12,7 @@ import torch
 from torch.utils.data import Sampler
 
 from .datasets import (NIHChestXray, ImageNet, ImageNet22k, MC, Shenzhen, SARSCoV2CT, BTCV, BrainTumor,
-                       BTCVSlice, MSDHeart)
+                       BTCVSlice, MSDHeart, AMOS)
 from .samplers import EpochSampler, InfiniteSampler, ShardedInfiniteSampler
 
 
@@ -74,6 +74,8 @@ def _parse_dataset_str(dataset_str: str):
         class_ = BTCVSlice
     elif name == "MSDHeart":
         class_ = MSDHeart
+    elif name == "AMOS":
+        class_ = AMOS
     else:
         raise ValueError(f'Unsupported dataset "{name}"')
     

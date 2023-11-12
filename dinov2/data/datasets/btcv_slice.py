@@ -76,7 +76,7 @@ class BTCVSlice(MedicalVisionDataset):
         image = torch.tensor(image).float()
 
         # pre-preprocess
-        image = torch.clamp(image, max=600)
+        image = torch.clamp(image, min=-1024, max=600)
         return image
     
     def get_target(self, index: int) -> Tuple[np.ndarray, torch.Tensor, None]:

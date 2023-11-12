@@ -122,8 +122,8 @@ PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/segmentati
     --config-file dinov2/configs/eval/vits14_pretrain.yaml \
     --pretrained-weights models/dinov2_vits14_pretrain.pth \
     --output-dir results/NIH/dinov2_vits14/knn \
-    --train-dataset MSDHeart:split=TRAIN:root=/mnt/z/data/MSDHeart \
-    --test-dataset MSDHeart:split=VAL:root=/mnt/z/data/MSDHeart
+    --train-dataset AMOS:split=TRAIN:root=/mnt/z/data/AMOS \
+    --test-dataset AMOS:split=VAL:root=/mnt/z/data/AMOS
 
 # PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/mlknn.py \
 #     --gpus 1 \
