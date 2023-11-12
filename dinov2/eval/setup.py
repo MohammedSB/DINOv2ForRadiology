@@ -6,6 +6,10 @@
 
 import argparse
 from typing import Any, List, Optional, Tuple
+import os
+
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 import torch
 import torch.backends.cudnn as cudnn

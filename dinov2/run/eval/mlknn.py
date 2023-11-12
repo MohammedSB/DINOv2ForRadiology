@@ -8,6 +8,9 @@ import logging
 import os
 import sys
 
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
+
 from dinov2.eval.classification.mlknn import get_args_parser as get_knn_args_parser
 from dinov2.logging import setup_logging
 from dinov2.run.submit import get_args_parser, submit_jobs

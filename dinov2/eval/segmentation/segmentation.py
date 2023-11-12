@@ -14,6 +14,9 @@ import sys
 from typing import List, Optional
 import math
 
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
+
 import numpy as np
 import torch
 import torch.nn as nn

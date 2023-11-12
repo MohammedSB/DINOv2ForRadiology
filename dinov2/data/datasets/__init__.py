@@ -13,3 +13,4 @@ from .sars_cov_2_ct import SARSCoV2CT
 from .btcv import BTCV
 from .btcv_slice import BTCVSlice
 from .brain_tumor import BrainTumor
+from .msd_heart import MSDHeart

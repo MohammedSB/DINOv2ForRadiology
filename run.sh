@@ -1,22 +1,23 @@
 #!/bin/bash
 
-PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/linear.py \
-    --gpus 1 \
-    --nodes 1 \
-    --batch-size 2 \
-    --eval-period-epochs 1 \
-    --epochs 100 \
-    --save-checkpoint-frequency 50 \
-    --learning-rates 1e-3 \
-    --n-last-blocks 1 \
-    --avgpools False \
-    --fine-tune True \
-    --val-metric-type multilabel_auc \
-    --config-file dinov2/configs/eval/vits14_pretrain.yaml \
-    --pretrained-weights models/dinov2_vits14_pretrain.pth \
-    --output-dir results/NIH/dinov2_vits14/knn \
-    --train-dataset NIHChestXray:split=TRAIN:root=/mnt/d/data/NIH \
-    --test-dataset NIHChestXray:split=TEST:root=/mnt/d/data/NIH \
+# PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/linear.py \
+#     --gpus 1 \
+#     --nodes 1 \
+#     --batch-size 2 \
+#     --eval-period-epochs 1 \
+#     --epochs 1 \
+#     --shots 4 \
+#     --save-checkpoint-frequency 50 \
+#     --learning-rates 1e-3 \
+#     --n-last-blocks 1 \
+#     --avgpools False \
+#     --fine-tune True \
+#     --val-metric-type multilabel_auc \
+#     --config-file dinov2/configs/eval/vits14_pretrain.yaml \
+#     --pretrained-weights models/dinov2_vits14_pretrain.pth \
+#     --output-dir results/NIH/dinov2_vits14/knn \
+#     --train-dataset NIHChestXray:split=VAL:root=/mnt/d/data/NIH \
+#     --test-dataset NIHChestXray:split=TEST:root=/mnt/d/data/NIH \
 
 # PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/linear.py \
 #     --gpus 1 \
@@ -108,21 +109,21 @@ PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/linear.py 
 #     --val-dataset MC:split=VAL:root=/mnt/z/data/MC \
 #     --test-dataset MC:split=TEST:root=/mnt/z/data/MC
 
-# PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/segmentation.py \
-#     --gpus 1 \
-#     --nodes 1 \
-#     --batch-size 2 \
-#     --epochs 50 \
-#     --eval-period-epochs 10 \
-#     --learning-rates 1e-2 \
-#     --image-size 224 \
-#     --decoder unet \
-#     --val-metric-type segmentation_metrics \
-#     --config-file dinov2/configs/eval/vits14_pretrain.yaml \
-#     --pretrained-weights models/dinov2_vits14_pretrain.pth \
-#     --output-dir results/NIH/dinov2_vits14/knn \
-#     --train-dataset BTCV:split=TRAIN:root=/mnt/z/data/BTCV \
-#     --test-dataset BTCV:split=VAL:root=/mnt/z/data/BTCV
+PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/segmentation.py \
+    --gpus 1 \
+    --nodes 1 \
+    --batch-size 2 \
+    --epochs 50 \
+    --eval-period-epochs 50 \
+    --learning-rates 1e-2 \
+    --image-size 224 \
+    --decoder linear \
+    --val-metric-type segmentation_metrics \
+    --config-file dinov2/configs/eval/vits14_pretrain.yaml \
+    --pretrained-weights models/dinov2_vits14_pretrain.pth \
+    --output-dir results/NIH/dinov2_vits14/knn \
+    --train-dataset MSDHeart:split=TRAIN:root=/mnt/z/data/MSDHeart \
+    --test-dataset MSDHeart:split=VAL:root=/mnt/z/data/MSDHeart
 
 # PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/mlknn.py \
 #     --gpus 1 \
