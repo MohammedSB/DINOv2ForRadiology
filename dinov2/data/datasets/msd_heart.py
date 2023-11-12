@@ -47,6 +47,9 @@ class MSDHeart(MedicalVisionDataset):
 
         self._labels_path = f"{os.sep}".join(self._split_dir.split(f"{os.sep}")[:-1]) + os.sep + "labels"
         self.labels = np.sort(np.array(os.listdir(self._labels_path)))
+        
+        labels_in = np.isin(self.labels, self.images)
+        self.labels = self.labels[labels_in]
     
         self.class_id_mapping = pd.DataFrame([i for i in range(2)],
                                     index=["background", "left atrium"],
@@ -61,6 +64,7 @@ class MSDHeart(MedicalVisionDataset):
 
     def get_image_data(self, index: int) -> np.ndarray:
         image_path = self._split_dir + os.sep + self.images[index]
+
         image = np.load(image_path)
         image = np.stack((image,)*3, axis=0)
         image = torch.tensor(image).float()
@@ -69,6 +73,7 @@ class MSDHeart(MedicalVisionDataset):
     
     def get_target(self, index: int) -> Tuple[np.ndarray, torch.Tensor, None]:        
         label_path = self._labels_path + os.sep + self.labels[index]
+                
         label = np.load(label_path)
         label = torch.from_numpy(label).unsqueeze(0)
 
