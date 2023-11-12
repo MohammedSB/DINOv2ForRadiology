@@ -47,6 +47,9 @@ class AMOS(MedicalVisionDataset):
 
         self._labels_path = f"{os.sep}".join(self._split_dir.split(f"{os.sep}")[:-1]) + os.sep + "labels"
         self.labels = np.sort(np.array(os.listdir(self._labels_path)))
+
+        labels_in = np.isin(self.labels, self.images)
+        self.labels = self.labels[labels_in]
     
         self.class_id_mapping = pd.DataFrame([i for i in range(16)],
                                     index=["background",
