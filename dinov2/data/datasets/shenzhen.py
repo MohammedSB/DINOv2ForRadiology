@@ -75,7 +75,7 @@ class Shenzhen(MedicalVisionDataset):
     
     def get_target(self, index: int) -> np.ndarray:
 
-        mask_path = self.images[index].split(".")[0] + "_mask.png"
+        mask_path = self.images[index][:-4] + "_mask.png"
         mask_path = self._masks_path + os.sep + mask_path
         mask = skimage.io.imread(mask_path).astype(np.int_)
 
