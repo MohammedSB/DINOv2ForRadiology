@@ -107,7 +107,7 @@ def make_classification_eval_transform(
 ) -> transforms.Compose:
     transforms_list = [
         transforms.Resize((resize_size, resize_size), interpolation=interpolation),
-        transforms.CenterCrop(crop_size),
+        transforms.CenterCrop((crop_size, crop_size)),
         MaybeToTensor(),
         RescaleImage(),
         make_normalize_transform(mean=mean, std=std),

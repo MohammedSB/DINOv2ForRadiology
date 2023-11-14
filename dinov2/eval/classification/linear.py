@@ -416,7 +416,7 @@ def run_eval_linear(
          avgpools = [False]
     
     train_transform = make_classification_train_transform(crop_size=image_size)
-    eval_transform = make_classification_eval_transform(crop_size=image_size)
+    eval_transform = make_classification_eval_transform(resize_size=image_size, crop_size=image_size)
     train_dataset, val_dataset, test_dataset = make_datasets(train_dataset_str=train_dataset_str, val_dataset_str=val_dataset_str,
                                                         test_dataset_str=test_dataset_str, train_transform=train_transform,
                                                         eval_transform=eval_transform)
