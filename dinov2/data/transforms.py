@@ -81,7 +81,7 @@ def make_classification_train_transform(
     std: Sequence[float] = IMAGENET_DEFAULT_STD,
 ):
     transforms_list = [
-        transforms.RandomResizedCrop(crop_size, scale=(0.75, 1), interpolation=interpolation),
+        transforms.RandomResizedCrop((crop_size, crop_size), scale=(0.75, 1), interpolation=interpolation),
     ]
     if hflip_prob > 0.0:
         transforms_list.append(transforms.RandomHorizontalFlip(hflip_prob))
