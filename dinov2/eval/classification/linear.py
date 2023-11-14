@@ -163,6 +163,11 @@ def get_args_parser(
         type=str,
         help="The name of the peft technique to use [lora]",
     )
+    parser.add_argument(
+        "--image-size",
+        type=str,
+        help="The size of input image"
+    )
     parser.set_defaults(
         train_dataset_str="NIHChestXray:split=TRAIN",
         val_dataset_str=None,
@@ -183,7 +188,8 @@ def get_args_parser(
         fine_tune=False,
         shots=None,
         backbone="dinov2",
-        peft=None
+        peft=None,
+        image_size=224
     )
     return parser
 
@@ -396,7 +402,8 @@ def run_eval_linear(
     fine_tune=False,
     shots=None,
     backbone="dinov2",
-    peft=None
+    peft=None,
+    image_size=224,
 ):
     seed = 0
     torch.manual_seed(seed)
@@ -408,8 +415,8 @@ def run_eval_linear(
          n_last_blocks_list = [1]
          avgpools = [False]
     
-    train_transform = make_classification_train_transform()
-    eval_transform = make_classification_eval_transform()
+    train_transform = make_classification_train_transform(crop_size=image_size)
+    eval_transform = make_classification_eval_transform(crop_size=image_size)
     train_dataset, val_dataset, test_dataset = make_datasets(train_dataset_str=train_dataset_str, val_dataset_str=val_dataset_str,
                                                         test_dataset_str=test_dataset_str, train_transform=train_transform,
                                                         eval_transform=eval_transform)
@@ -460,7 +467,7 @@ def run_eval_linear(
         config = LoraConfig(
             r=48,
             lora_alpha=16,
-            target_modules=["qkv"],
+            target_modules=["qkv", "fc1", "fc2"],
             lora_dropout=0.1,
             bias="lora_only",
             modules_to_save=["classifier"],
@@ -614,7 +621,8 @@ def main(args):
             val_metric_type=args.val_metric_type,
             fine_tune=args.fine_tune,
             backbone=args.backbone,
-            peft=args.peft
+            peft=args.peft,
+            image_size=args.image_size
             )
     if args.shots != None:
         for shot in args.shots:
