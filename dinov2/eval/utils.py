@@ -90,6 +90,39 @@ class ViTLargeImagenet21k(nn.Module):
             return tuple(zip(outputs, class_tokens))
         return tuple(outputs)
     
+class MAEViTLargeImagenet1k(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.model = ViTForImageClassification.from_pretrained('facebook/vit-mae-large')
+        self.embed_dim = 1024
+        self.norm = nn.LayerNorm(self.embed_dim, eps=1e-6)
+
+    def forward(self, x):
+        output = self.model.forward(x, output_hidden_states=True)
+        cls = output.hidden_states[-1][:, 0]
+        return cls
+    
+    def forward_features(self, x, masks=None):
+        
+        layer_features = self.model.forward(x, output_hidden_states=True)
+
+        patch_tokens = layer_features.hidden_states[-1]
+        patch_tokens = patch_tokens[:, 1:]
+
+        x_norm_patch = self.norm(patch_tokens)
+        return {
+            "x_norm_patchtokens": x_norm_patch,
+        }
+    
+    def get_intermediate_layers(self, x, n_last_blocks, return_class_token=True):
+        layer_features = self.model.forward(x, output_hidden_states=True)
+        outputs = layer_features.hidden_states[-n_last_blocks: ]
+        class_tokens = [out[:, 0] for out in outputs]
+        outputs = [out[:, 1:] for out in outputs]
+        if return_class_token:
+            return tuple(zip(outputs, class_tokens))
+        return tuple(outputs)
+    
 class ResNet152ImageNet1k(nn.Module):
     def __init__(self):
         super().__init__()
@@ -119,7 +152,7 @@ class SAMLarge(nn.Module):
     
     def get_intermediate_layers(self, x, n_last_blocks, return_class_token=True):
         outputs = self.model(x)
-        return [(None, outputs)]
+        return tuple(zip(-1, outputs))
 
 class DenseNet201ImageNet1k(nn.Module):
     def __init__(self):
