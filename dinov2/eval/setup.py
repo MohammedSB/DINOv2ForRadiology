@@ -18,7 +18,7 @@ from dinov2.logging import logging
 from dinov2.models import build_model_from_cfg
 from dinov2.utils.config import setup
 import dinov2.utils.utils as dinov2_utils
-from dinov2.eval.utils import ViTLargeImagenet21k, ResNet152ImageNet1k, VGG19ImageNet1k, DenseNet201ImageNet1k
+from dinov2.eval.utils import ViTLargeImagenet21k, ResNet152ImageNet1k, VGG19ImageNet1k, DenseNet201ImageNet1k, SAMLarge
 from transformers import ViTForImageClassification
 
 
@@ -82,6 +82,9 @@ def build_model_for_eval(config, pretrained_weights, backbone):
     elif backbone == "densenet-201-imagenet1k":
         model = DenseNet201ImageNet1k()
         logger.info("Using densenet-201-imagenet1k backbone")
+    elif backbone == "sam-large":
+        model = SAMLarge()
+        logger.info("Using SAM Large backbone")
     else:
         model, _ = build_model_from_cfg(config, only_teacher=True)
         dinov2_utils.load_pretrained_weights(model, pretrained_weights, "teacher")

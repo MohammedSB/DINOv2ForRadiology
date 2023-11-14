@@ -11,7 +11,7 @@ from builtins import range
 from sklearn.neighbors import NearestNeighbors
 from skmultilearn.base import MLClassifierBase
 from skmultilearn.utils import get_matrix_in_format
-from transformers import ViTForImageClassification
+from transformers import ViTForImageClassification, SamModel
 import ast
 import numpy as np
 import scipy.sparse as sparse
@@ -98,6 +98,23 @@ class ResNet152ImageNet1k(nn.Module):
 
     def forward(self, x):
         output = self.model(x)
+        return output
+    
+    def get_intermediate_layers(self, x, n_last_blocks, return_class_token=True):
+        outputs = self.model(x)
+        return [(None, outputs)]
+    
+class SAMLarge(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.model = SamModel.from_pretrained("facebook/sam-vit-large")
+        self.model = self.model.vision_encoder
+        self.model.neck = torch.nn.Identity()
+
+    def forward(self, x):
+        output = self.model(x)
+        output = output.last_hidden_state.reshape(1, 4096, -1)
+        output = output.mean(dim=1)
         return output
     
     def get_intermediate_layers(self, x, n_last_blocks, return_class_token=True):
