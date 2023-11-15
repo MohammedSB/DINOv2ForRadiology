@@ -187,7 +187,7 @@ class SAMLarge(nn.Module):
     
     def get_intermediate_layers(self, x, n_last_blocks, return_class_token=True):
         outputs = self.forward(x)
-        return tuple(zip(-1, outputs))
+        return [(None, outputs)]
 
 class DenseNet201ImageNet1k(nn.Module):
     def __init__(self):

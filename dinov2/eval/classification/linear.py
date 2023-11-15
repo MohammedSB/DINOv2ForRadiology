@@ -165,7 +165,7 @@ def get_args_parser(
     )
     parser.add_argument(
         "--image-size",
-        type=str,
+        type=int,
         help="The size of input image"
     )
     parser.set_defaults(
