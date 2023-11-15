@@ -34,7 +34,7 @@ from dinov2.eval.utils import (ModelWithIntermediateLayers, evaluate, apply_meth
                                 is_padded_matrix, collate_fn_3d, str2bool, trainable_parameters, bitfit)
 from dinov2.eval.classification.utils import (setup_linear_classifiers, LinearPostprocessor)
 from dinov2.logging import MetricLogger
-from dinov2.data.wrappers import FewShotDatasetWrapper
+from dinov2.data.wrappers import FewShotDatasetWrapper, SystemicSamplerWrapper
 from dinov2.models.vision_transformer import DinoVisionTransformer
 
 from peft import LoraConfig, get_peft_model
@@ -168,6 +168,11 @@ def get_args_parser(
         type=int,
         help="The size of input image"
     )
+    parser.add_argument(
+        "--num-samples",
+        type=int,
+        help="Num of samples to take from the dataset"
+    )
     parser.set_defaults(
         train_dataset_str="NIHChestXray:split=TRAIN",
         val_dataset_str=None,
@@ -189,7 +194,8 @@ def get_args_parser(
         shots=None,
         backbone="dinov2",
         peft=None,
-        image_size=224
+        image_size=224,
+        num_samples=None,
     )
     return parser
 
@@ -404,6 +410,7 @@ def run_eval_linear(
     backbone="dinov2",
     peft=None,
     image_size=224,
+    num_samples=None
 ):
     seed = 0
     torch.manual_seed(seed)
@@ -423,6 +430,9 @@ def run_eval_linear(
     if shots != None:
         logger.info(f"Running dataset in {shots}-shot setting")
         train_dataset = FewShotDatasetWrapper(train_dataset, shots=shots)
+    elif num_samples != None:
+        logger.info(f"Running dataset with {num_samples} samples only")
+        train_dataset = SystemicSamplerWrapper(train_dataset, num_samples=num_samples)
 
     batch_size = train_dataset.__len__() if batch_size > train_dataset.__len__() else batch_size
     num_of_classes = test_dataset.get_num_classes()
@@ -526,7 +536,7 @@ def run_eval_linear(
 
         start_iter = 1
 
-        if shots == None: # If few-shot is enabled, keep training set. 
+        if shots == None or num_samples == None: # If few-shot is enabled, keep training set. 
             val_dataset = make_dataset(
                 dataset_str=val_dataset_str,
                 transform=train_transform,
@@ -622,7 +632,8 @@ def main(args):
             fine_tune=args.fine_tune,
             backbone=args.backbone,
             peft=args.peft,
-            image_size=args.image_size
+            image_size=args.image_size,
+            num_samples=args.num_samples
             )
     if args.shots != None:
         for shot in args.shots:

@@ -22,3 +22,15 @@ class FewShotDatasetWrapper(torch.utils.data.Subset):
 
     def __len__(self):
         return self.subset.__len__()
+    
+class SystemicSamplerWrapper(torch.utils.data.Subset):
+    def __init__(self, dataset, num_samples=5000):
+        dataset_len = dataset.__len__()
+        indices = np.arange(0, dataset_len, dataset_len/num_samples).round().astype("int")
+        self.subset = torch.utils.data.Subset(dataset, indices)
+            
+    def __getitem__(self, index):
+        return self.subset.__getitem__(index)
+
+    def __len__(self):
+        return self.subset.__len__()
