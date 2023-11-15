@@ -11,7 +11,7 @@ from builtins import range
 from sklearn.neighbors import NearestNeighbors
 from skmultilearn.base import MLClassifierBase
 from skmultilearn.utils import get_matrix_in_format
-from transformers import ViTForImageClassification, SamModel
+from transformers import ViTForImageClassification, SamModel, CLIPModel
 import ast
 import numpy as np
 import scipy.sparse as sparse
@@ -93,7 +93,8 @@ class ViTLargeImagenet21k(nn.Module):
 class CLIPLarge(nn.Module):
     def __init__(self):
         super().__init__()
-        self.model = ViTForImageClassification.from_pretrained('openai/clip-vit-large-patch14')
+        self.model = CLIPModel.from_pretrained('openai/clip-vit-large-patch14')
+        self.model = self.model.vision_model
         self.embed_dim = 1024
         self.norm = nn.LayerNorm(self.embed_dim, eps=1e-6)
 
