@@ -181,7 +181,8 @@ class SAMLarge(nn.Module):
 
     def forward(self, x):
         output = self.model(x)
-        output = output.last_hidden_state.reshape(1, 4096, -1)
+        batch = output.last_hidden_state.size(0)
+        output = output.last_hidden_state.view(batch, 64 * 64, 1024)
         output = output.mean(dim=1)
         return output
     
