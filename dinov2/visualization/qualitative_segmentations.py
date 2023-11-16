@@ -124,8 +124,8 @@ def run_qualtitave_result_generation(
 
     decoder = list(decoders.module.decoders_dict.values())[0]
 
-    highlight_multipler = 50
-    metric = build_segmentation_metrics(average_type=MetricAveraging.SEGMENTATION_METRICS, num_labels=3).cuda()
+    highlight_multipler = np.arange(0, 255, num_of_classes/255).round().astype("int")
+    metric = build_segmentation_metrics(average_type=MetricAveraging.SEGMENTATION_METRICS, num_labels=num_of_classes).cuda()
     for image_index in range(num_of_images):
 
         image, target = dataset[image_index]
