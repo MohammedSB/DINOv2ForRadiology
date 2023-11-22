@@ -12,12 +12,12 @@ PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/linear.py 
     --avgpools False \
     --fine-tune False \
     --val-metric-type multilabel_auc \
-    --num-samples 1000 \
+    --num-samples 10000 \
     --config-file dinov2/configs/eval/vits14_pretrain.yaml \
     --pretrained-weights models/dinov2_vits14_pretrain.pth \
     --output-dir results/NIH/dinov2_vits14/knn \
-    --train-dataset NIHChestXray:split=VAL:root=/mnt/d/data/NIH \
-    --test-dataset NIHChestXray:split=TEST:root=/mnt/d/data/NIH \
+    --train-dataset CheXpert:split=VAL:root=/mnt/d/data/tmp/CheXpert \
+    --test-dataset CheXpert:split=TEST:root=/mnt/d/data/tmp/CheXpert \
 
 # PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/linear.py \
 #     --gpus 1 \

@@ -43,11 +43,21 @@ class CheXpert(MedicalVisionDataset):
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
     ) -> None:
+        root = root + os.sep
         super().__init__(split, root, transforms, transform, target_transform)
         
+        if "val" in self._split_dir:
+            self._split_dir = self._split_dir.replace("val", "train")
         # Set the labels dataframe
-        self.labels = pd.read_csv(root + self._split.value + ".csv")
+        self.root = root + os.sep
+        self.labels = pd.read_csv(self.root + self._split.value + ".csv")
         self._clean_labels()
+
+    def _check_size(self):
+        t = pd.read_csv(self.root + self._split.value + ".csv")
+        t= t[~t['Path'].str.contains('lateral')].reset_index(drop=True)
+        num_of_images = len(t)
+        logger.info(f"{self._split.length - num_of_images} scans are missing from {self._split.value.upper()} set")
 
     def _clean_labels(self):
 
