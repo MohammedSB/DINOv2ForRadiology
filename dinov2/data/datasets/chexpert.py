@@ -64,8 +64,8 @@ class CheXpert(MedicalVisionDataset):
         # self.labels = self.labels[~self.labels['Path'].str.contains('lateral')].reset_index(drop=True)
         # self.labels.fillna(0, inplace=True)
         # self.labels = self.labels[["Path", "Cardiomegaly", "Edema", "Consolidation", "Atelectasis", "Pleural Effusion"]]
-
-        # self.labels["Uncertain"] = 0
+        if self.split == _Split.TEST:
+            self.labels["Uncertain"] = 0
 
         # Loop through the rows of the table
         # for i, row in self.labels.iterrows():
@@ -107,7 +107,7 @@ class CheXpert(MedicalVisionDataset):
         return image
 
     def get_target(self, index: int):
-        return self.targets[index].astype(np.int64)
+        return self.targets[index].astype(np.int32)
 
     def get_targets(self) -> np.ndarray:
         return self.targets
