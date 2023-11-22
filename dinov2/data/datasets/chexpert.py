@@ -57,23 +57,23 @@ class CheXpert(MedicalVisionDataset):
         t = pd.read_csv(self.root + self._split.value + ".csv")
         t= t[~t['Path'].str.contains('lateral')].reset_index(drop=True)
         num_of_images = len(t)
-        logger.info(f"{self._split.length - num_of_images} scans are missing from {self._split.value.upper()} set")
+        # logger.info(f"{self._split.length - num_of_images} scans are missing from {self._split.value.upper()} set")
 
     def _clean_labels(self):
 
-        self.labels = self.labels[~self.labels['Path'].str.contains('lateral')].reset_index(drop=True)
-        self.labels.fillna(0, inplace=True)
-        self.labels = self.labels[["Path", "Cardiomegaly", "Edema", "Consolidation", "Atelectasis", "Pleural Effusion"]]
+        # self.labels = self.labels[~self.labels['Path'].str.contains('lateral')].reset_index(drop=True)
+        # self.labels.fillna(0, inplace=True)
+        # self.labels = self.labels[["Path", "Cardiomegaly", "Edema", "Consolidation", "Atelectasis", "Pleural Effusion"]]
 
-        self.labels["Uncertain"] = 0
+        # self.labels["Uncertain"] = 0
 
         # Loop through the rows of the table
-        for i, row in self.labels.iterrows():
-            # Check if any of the diseases have value -1
-            if any(row[["Cardiomegaly", "Edema", "Consolidation", "Atelectasis", "Pleural Effusion"]] == -1):
-                # Set uncertain to 1
-                self.labels.loc[i, "Uncertain"] = 1
-        self.labels.replace(-1, 0, inplace=True)
+        # for i, row in self.labels.iterrows():
+        #     # Check if any of the diseases have value -1
+        #     if any(row[["Cardiomegaly", "Edema", "Consolidation", "Atelectasis", "Pleural Effusion"]] == -1):
+        #         # Set uncertain to 1
+        #         self.labels.loc[i, "Uncertain"] = 1
+        # self.labels.replace(-1, 0, inplace=True)
 
         classes = ["Cardiomegaly", "Edema", "Consolidation", "Atelectasis", "Pleural Effusion", "Uncertain"]
         self.targets = self.labels[classes].to_numpy()
@@ -107,7 +107,7 @@ class CheXpert(MedicalVisionDataset):
         return image
 
     def get_target(self, index: int):
-        return self.targets[index]
+        return self.targets[index].astype(np.int32)
 
     def get_targets(self) -> np.ndarray:
         return self.targets

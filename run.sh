@@ -1,23 +1,23 @@
 #!/bin/bash
 
-PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/linear.py \
-    --gpus 1 \
-    --nodes 1 \
-    --batch-size 2 \
-    --eval-period-epochs 1 \
-    --epochs 1 \
-    --save-checkpoint-frequency 50 \
-    --learning-rates 1e-3 \
-    --n-last-blocks 1 \
-    --avgpools False \
-    --fine-tune False \
-    --val-metric-type multilabel_auc \
-    --num-samples 10000 \
-    --config-file dinov2/configs/eval/vits14_pretrain.yaml \
-    --pretrained-weights models/dinov2_vits14_pretrain.pth \
-    --output-dir results/NIH/dinov2_vits14/knn \
-    --train-dataset CheXpert:split=VAL:root=/mnt/d/data/tmp/CheXpert \
-    --test-dataset CheXpert:split=TEST:root=/mnt/d/data/tmp/CheXpert \
+# PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/linear.py \
+#     --gpus 1 \
+#     --nodes 1 \
+#     --batch-size 2 \
+#     --eval-period-epochs 1 \
+#     --epochs 1 \
+#     --save-checkpoint-frequency 50 \
+#     --learning-rates 1e-3 \
+#     --n-last-blocks 1 \
+#     --avgpools False \
+#     --fine-tune False \
+#     --val-metric-type multilabel_auc \
+#     --num-samples 10000 \
+#     --config-file dinov2/configs/eval/vits14_pretrain.yaml \
+#     --pretrained-weights models/dinov2_vits14_pretrain.pth \
+#     --output-dir results/NIH/dinov2_vits14/knn \
+#     --train-dataset CheXpert:split=VAL:root=/mnt/d/data/tmp/CheXpert \
+#     --test-dataset CheXpert:split=TEST:root=/mnt/d/data/tmp/CheXpert \
 
 # PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/linear.py \
 #     --gpus 1 \
@@ -125,13 +125,13 @@ PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/linear.py 
 #     --train-dataset AMOS:split=TRAIN:root=/mnt/z/data/AMOS \
 #     --test-dataset AMOS:split=VAL:root=/mnt/z/data/AMOS
 
-# PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/mlknn.py \
-#     --gpus 1 \
-#     --nodes 1 \
-#     --batch-size 16 \
-#     --nb_knn 10 20 100 200 \
-#     --config-file dinov2/configs/eval/vits14_pretrain.yaml \
-#     --pretrained-weights models/dinov2_vits14_pretrain.pth \
-#     --output-dir results/NIH/dinov2_vits14/knn \
-#     --train-dataset NIHChestXray:split=TRAIN:root=/mnt/d/data/NIH \
-#     --test-dataset NIHChestXray:split=TEST:root=/mnt/d/data/NIH
+PYTHONPATH=. python3 /mnt/c/Users/user/Desktop/dinov2/dinov2/run/eval/mlknn.py \
+    --gpus 1 \
+    --nodes 1 \
+    --batch-size 16 \
+    --nb_knn 10 20 100 200 \
+    --config-file dinov2/configs/eval/vits14_pretrain.yaml \
+    --pretrained-weights models/dinov2_vits14_pretrain.pth \
+    --output-dir results/NIH/dinov2_vits14/knn \
+    --train-dataset CheXpert:split=TRAIN:root=/mnt/d/data/tmp/CheXpert \
+    --test-dataset CheXpert:split=TEST:root=/mnt/d/data/tmp/CheXpert
