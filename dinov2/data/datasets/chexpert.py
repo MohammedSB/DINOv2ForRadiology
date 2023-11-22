@@ -107,7 +107,7 @@ class CheXpert(MedicalVisionDataset):
         return image
 
     def get_target(self, index: int):
-        return self.targets[index].astype(np.int32)
+        return self.targets[index].astype(np.int64)
 
     def get_targets(self) -> np.ndarray:
         return self.targets
