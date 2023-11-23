@@ -25,9 +25,9 @@ class _Split(Enum):
     @property
     def length(self) -> int:
         split_lengths = {
-            _Split.TRAIN: 151_590,
-            _Split.VAL: 10_000,
-            _Split.TEST: 202,
+            _Split.TRAIN: 191_027,
+            _Split.VAL: 202,
+            _Split.TEST: 518,
         }
         return split_lengths[self]
 
@@ -46,8 +46,6 @@ class CheXpert(MedicalVisionDataset):
         root = root + os.sep
         super().__init__(split, root, transforms, transform, target_transform)
         
-        if "val" in self._split_dir:
-            self._split_dir = self._split_dir.replace("val", "train")
         # Set the labels dataframe
         self.root = root + os.sep
         self.labels = pd.read_csv(self.root + self._split.value + ".csv")
@@ -57,23 +55,22 @@ class CheXpert(MedicalVisionDataset):
         t = pd.read_csv(self.root + self._split.value + ".csv")
         t= t[~t['Path'].str.contains('lateral')].reset_index(drop=True)
         num_of_images = len(t)
-        # logger.info(f"{self._split.length - num_of_images} scans are missing from {self._split.value.upper()} set")
+        logger.info(f"{self._split.length - num_of_images} scans are missing from {self._split.value.upper()} set")
 
     def _clean_labels(self):
 
-        # self.labels = self.labels[~self.labels['Path'].str.contains('lateral')].reset_index(drop=True)
-        # self.labels.fillna(0, inplace=True)
-        # self.labels = self.labels[["Path", "Cardiomegaly", "Edema", "Consolidation", "Atelectasis", "Pleural Effusion"]]
-        if self.split == _Split.TEST:
-            self.labels["Uncertain"] = 0
+        self.labels = self.labels[~self.labels['Path'].str.contains('lateral')].reset_index(drop=True)
+        self.labels.fillna(0, inplace=True)
+        self.labels = self.labels[["Path", "Cardiomegaly", "Edema", "Consolidation", "Atelectasis", "Pleural Effusion"]]
+        self.labels["Uncertain"] = 0
 
         # Loop through the rows of the table
-        # for i, row in self.labels.iterrows():
-        #     # Check if any of the diseases have value -1
-        #     if any(row[["Cardiomegaly", "Edema", "Consolidation", "Atelectasis", "Pleural Effusion"]] == -1):
-        #         # Set uncertain to 1
-        #         self.labels.loc[i, "Uncertain"] = 1
-        # self.labels.replace(-1, 0, inplace=True)
+        for i, row in self.labels.iterrows():
+            # Check if any of the diseases have value -1
+            if any(row[["Cardiomegaly", "Edema", "Consolidation", "Atelectasis", "Pleural Effusion"]] == -1):
+                # Set uncertain to 1
+                self.labels.loc[i, "Uncertain"] = 1
+        self.labels.replace(-1, 0, inplace=True)
 
         classes = ["Cardiomegaly", "Edema", "Consolidation", "Atelectasis", "Pleural Effusion", "Uncertain"]
         self.targets = self.labels[classes].to_numpy()
@@ -97,7 +94,9 @@ class CheXpert(MedicalVisionDataset):
 
     def get_image_data(self, index: int) :
         data_point = self.labels.iloc[index] 
-        image_path = self._split_dir + os.sep + f"{os.sep}".join(data_point["Path"].split(f"{os.sep}")[2:])
+        rel = f"{os.sep}".join(data_point["Path"].split(f"{os.sep}")[1:]) if self._split == _Split.TEST else \
+                f"{os.sep}".join(data_point["Path"].split(f"{os.sep}")[2:])
+        image_path = self._split_dir + os.sep + rel
         
         # Read as gray because some of the images have extra layers in the 3rd dimension
         image = skimage.io.imread(image_path).astype(np.float16)
@@ -127,7 +126,7 @@ class CheXpert(MedicalVisionDataset):
 def make_val_set(data_dir="/mnt/d/data/tmp/CheXpert-v1.0/"):
     df = pd.read_csv(data_dir + "train.csv")
     df = df[~df['Path'].str.contains('lateral')].reset_index(drop=True)
-    df = df[df["AP/PA"] == "AP"].reset_index(drop=True)
+    # df = df[df["AP/PA"] == "AP"].reset_index(drop=True)
     df.fillna(0, inplace=True)
     df = df[["Path", "Cardiomegaly", "Edema", "Consolidation", "Atelectasis", "Pleural Effusion"]]
 
