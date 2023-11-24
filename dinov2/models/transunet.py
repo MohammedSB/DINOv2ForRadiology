@@ -723,12 +723,12 @@ class VisionTransformer(nn.Module):
                         unit.load_from(res_weight, n_block=bname, n_unit=uname)
 
 CONFIGS = {
-    'ViT-B_16': configs.get_b16_config(),
-    'ViT-B_32': configs.get_b32_config(),
-    'ViT-L_16': configs.get_l16_config(),
-    'ViT-L_32': configs.get_l32_config(),
-    'ViT-H_14': configs.get_h14_config(),
-    'R50-ViT-B_16': configs.get_r50_b16_config(),
-    'R50-ViT-L_16': configs.get_r50_l16_config(),
-    'testing': configs.get_testing(),
+    'ViT-B_16': get_b16_config(),
+    'ViT-B_32': get_b32_config(),
+    'ViT-L_16': get_l16_config(),
+    'ViT-L_32': get_l32_config(),
+    'ViT-H_14': get_h14_config(),
+    'R50-ViT-B_16': get_r50_b16_config(),
+    'R50-ViT-L_16': get_r50_l16_config(),
+    'testing': get_testing(),
 }
