@@ -486,7 +486,7 @@ def run_eval_linear(
         tp, ap = trainable_parameters(feature_model)
         logger.info(f"LoRA trainable params: {tp} || all params: {ap} || trainable%: {100 * tp / ap:.2f}")
 
-        lr_ = learning_rates[0] if len(learning_rates) == 1 else 0.005
+        lr_ = backbone_learning_rate
         optim_param_groups.append({'params': feature_model.parameters(), 'lr':lr_})
         checkpoint_model = nn.Sequential(feature_model, linear_classifiers)
     elif peft == "bitfit":
