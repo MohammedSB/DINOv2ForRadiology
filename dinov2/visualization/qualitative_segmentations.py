@@ -124,13 +124,13 @@ def run_qualtitave_result_generation(
 
     decoder = list(decoders.module.decoders_dict.values())[0]
 
-    highlight_multipler = np.arange(0, 255, num_of_classes/255).round().astype("int")
+    highlight_multipler = 255//num_of_classes
     metric = build_segmentation_metrics(average_type=MetricAveraging.SEGMENTATION_METRICS, num_labels=num_of_classes).cuda()
     for image_index in range(num_of_images):
 
         image, target = dataset[image_index]
         image, target = image.cuda(non_blocking=True).unsqueeze(0), target.cuda(non_blocking=True).unsqueeze(0)
-
+        
         with torch.no_grad(): 
             features = feature_model(image)
         logits = decoder(features)
@@ -139,24 +139,13 @@ def run_qualtitave_result_generation(
 
         results = metric(prediction, target)
 
-        target = target.squeeze()
         prediction = prediction.squeeze()
-        concated = torch.cat((target, prediction), dim=-1)
-
         prediction = (prediction * highlight_multipler).cpu()
-        target = (target * highlight_multipler).cpu()
-        concated = (concated.unsqueeze(0).type(torch.int32) * highlight_multipler).cpu()
-        H, W = concated.squeeze().shape
-
-        pil_image = torchvision.transforms.ToPILImage()(concated)
+        H, W = prediction.squeeze().shape
+        pil_image = torchvision.transforms.ToPILImage()(prediction.type(torch.int32))
         pil_image = pil_image.convert("L") # Convert to Grayscale
-
+        
         draw = ImageDraw.Draw(pil_image)
-        _, _, w, h = draw.textbbox((0, 0), "Target")
-        draw.text(((W-w)*0.25, H*0.025), "Target", fill=255)
-
-        _, _, w, h = draw.textbbox((0, 0), "Prediction")
-        draw.text(( (W-w) * 0.75, H*0.025), "Prediction", fill=255)
 
         result_meta = ""
         for m, r in dict(results).items():
