@@ -92,7 +92,7 @@ def build_model_for_eval(config, pretrained_weights, backbone):
     elif backbone == "clip-large":
         model = CLIPLarge()
         logger.info("Using clip-large backbone")
-    elif backbone = "openclip-huge":
+    elif backbone == "openclip-huge":
         model = OpenCLIPHuge()
         logger.info("Using openclip-huge backbone")
     else:
