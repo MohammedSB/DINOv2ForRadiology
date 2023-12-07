@@ -1,6 +1,6 @@
 # Towards General Purpose Vision Foundation Models for Medical Image Analysis: An Experimental Study of DINOv2 on Radiology Benchmarks
 
-**[Original code is from](https://github.com/facebookresearch/dinov2)**
+**[Original code is from: https://github.com/facebookresearch/dinov2)](https://github.com/facebookresearch/dinov2)**
 
 ## Citing 
 
