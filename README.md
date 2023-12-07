@@ -4,7 +4,7 @@
 
 ## Citing 
 
-If you find this repository useful, please consider giving a star :star: and citation :t-rex::
+If you use this repository in your work, please consider giving a citation.
 
 ```
 @misc{baharoon2023general,
