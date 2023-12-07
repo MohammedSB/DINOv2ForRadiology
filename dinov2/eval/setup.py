@@ -19,7 +19,7 @@ from dinov2.models import build_model_from_cfg
 from dinov2.utils.config import setup
 import dinov2.utils.utils as dinov2_utils
 from dinov2.eval.utils import (ViTLargeImagenet21k, ResNet152ImageNet1k, VGG19ImageNet1k, DenseNet201ImageNet1k, SAMLarge,
-                               MAEViTLargeImagenet1k, CLIPLarge, OpenCLIPHuge, ViTLargeMSN)
+                               MAEViTLargeImagenet1k, CLIPLarge, OpenCLIPHuge, ViTLargeMSN, BiomedCLIPBase)
 from transformers import ViTForImageClassification
 
 
@@ -98,6 +98,9 @@ def build_model_for_eval(config, pretrained_weights, backbone):
     elif backbone == "vit-large-msn":
         model = ViTLargeMSN()
         logger.info("Using vir-large-msn backbone")
+    elif backbone == "biomedclip-base":
+        model = BiomedCLIPBase()
+        logger.info("Using biomedclip-base backbone")
     else:
         model, _ = build_model_from_cfg(config, only_teacher=True)
         dinov2_utils.load_pretrained_weights(model, pretrained_weights, "teacher")
