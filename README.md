@@ -4,7 +4,7 @@
 
 ## Citing 
 
-If you use this repository in your work, please consider giving a citation.
+If you use this repository in your work, please consider citing the following.
 
 ```
 @misc{baharoon2023general,
