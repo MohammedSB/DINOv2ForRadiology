@@ -73,8 +73,7 @@ class MSDHipp(MedicalVisionDataset):
         # pre-preprocess
         max_value = np.percentile(image, 95)
         min_value = np.percentile(image, 5)
-        image = np.where(image <= max_value, image, max_value)
-        image = np.where(image >= min_value, image, 0.)
+        image = np.clip(image, min_value, max_value)
 
         return image
     
