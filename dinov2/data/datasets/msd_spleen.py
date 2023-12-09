@@ -70,6 +70,12 @@ class MSDSpleen(MedicalVisionDataset):
         image = np.stack((image,)*3, axis=0)
         image = torch.tensor(image).float()
 
+        # pre-preprocess
+        max_value = np.percentile(image, 95)
+        min_value = np.percentile(image, 5)
+        image = np.where(image <= max_value, image, max_value)
+        image = np.where(image <= min_value, 0., image)
+
         return image
     
     def get_target(self, index: int) -> Tuple[np.ndarray, torch.Tensor, None]:        
