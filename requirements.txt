@@ -6,7 +6,7 @@ omegaconf
 torchmetrics==1.0.3
 fvcore
 iopath
-xformers==0.0.18
+# xformers==0.0.18
 submitit
 --extra-index-url https://pypi.nvidia.com
 cuml-cu11
@@ -24,3 +24,4 @@ transformers
 h5py
 peft
 ml-collections
+open-clip-torch

@@ -14,5 +14,7 @@ from .btcv import BTCV
 from .btcv_slice import BTCVSlice
 from .brain_tumor import BrainTumor
 from .msd_heart import MSDHeart
+from .msd_hipp import MSDHipp
+from .msd_spleen import MSDSpleen
 from .amos import AMOS
 from .chexpert import CheXpert

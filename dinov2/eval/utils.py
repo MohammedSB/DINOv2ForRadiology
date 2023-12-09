@@ -707,7 +707,7 @@ def is_padded_matrix(matrix):
 
 def str2bool(v):
     if isinstance(v, bool):
-       return v
+        return v
     if v.lower() in ('yes', 'true', 't', 'y', '1'):
         return True
     else:
