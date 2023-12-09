@@ -95,9 +95,9 @@ def build_model_for_eval(config, pretrained_weights, backbone):
     elif backbone == "openclip-huge":
         model = OpenCLIPHuge()
         logger.info("Using openclip-huge backbone")
-    elif backbone == "vit-large-msn":
+    elif backbone == "msn-large-imagenet1k":
         model = ViTLargeMSN()
-        logger.info("Using vir-large-msn backbone")
+        logger.info("Using msn-large-imagenet1k backbone")
     elif backbone == "biomedclip-base":
         model = BiomedCLIPBase()
         logger.info("Using biomedclip-base backbone")
