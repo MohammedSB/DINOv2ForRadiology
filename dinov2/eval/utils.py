@@ -62,6 +62,7 @@ class ViTLargeImagenet21k(nn.Module):
         super().__init__()
         self.model = ViTForImageClassification.from_pretrained('google/vit-large-patch16-224')
         self.embed_dim = 1024
+        self.patch_size = 16
         self.norm = nn.LayerNorm(self.embed_dim, eps=1e-6)
 
     def forward(self, x):
@@ -96,6 +97,7 @@ class ViTLargeMSN(nn.Module):
         super().__init__()
         self.model = ViTMSNModel.from_pretrained("facebook/vit-msn-large")
         self.embed_dim = 1024
+        self.patch_size = 16
         self.norm = nn.LayerNorm(self.embed_dim, eps=1e-6)
 
     def forward(self, x):
@@ -132,6 +134,7 @@ class CLIPLarge(nn.Module):
         self.model = CLIPModel.from_pretrained('openai/clip-vit-large-patch14')
         self.model = self.model.vision_model
         self.embed_dim = 1024
+        self.patch_size = 14
         self.norm = nn.LayerNorm(self.embed_dim, eps=1e-6)
 
     def forward(self, x):
@@ -166,6 +169,7 @@ class OpenCLIPHuge(nn.Module):
         self.model = CLIPModel.from_pretrained('laion/CLIP-ViT-H-14-laion2B-s32B-b79K')
         self.model = self.model.vision_model
         self.embed_dim = 1280
+        self.patch_size = 14
         self.norm = nn.LayerNorm(self.embed_dim, eps=1e-6)
 
     def forward(self, x):
@@ -215,6 +219,7 @@ class MAEViTLargeImagenet1k(nn.Module):
         super().__init__()
         self.model = ViTForImageClassification.from_pretrained('facebook/vit-mae-large')
         self.embed_dim = 1024
+        self.patch_size = 16
         self.norm = nn.LayerNorm(self.embed_dim, eps=1e-6)
 
     def forward(self, x):

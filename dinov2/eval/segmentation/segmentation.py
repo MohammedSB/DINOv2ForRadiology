@@ -403,7 +403,7 @@ def run_eval_segmentation(
         logger.info(f"Running dataset in {shots}-shot setting")
         train_dataset = FewShotDatasetWrapper(train_dataset, shots=shots)
 
-    patch_size = 16 if "vit" in backbone else 14
+    patch_size = model.patch_size
     batch_size = train_dataset.__len__() if batch_size > train_dataset.__len__() else batch_size
     embed_dim = model.embed_dim
     is_3d = test_dataset.is_3d()
