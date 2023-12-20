@@ -1,6 +1,10 @@
 # Towards General Purpose Vision Foundation Models for Medical Image Analysis: An Experimental Study of DINOv2 on Radiology Benchmarks
 
-**[Original code is from: https://github.com/facebookresearch/dinov2)](https://github.com/facebookresearch/dinov2)**
+**[Original code is from: https://github.com/facebookresearch/dinov2](https://github.com/facebookresearch/dinov2)**
+
+Mohammed Baharoon, Waseem Qureshi, Jiahong Ouyang, Yanwu Xu, Abdulrhman Aljouie, Wei Peng
+
+In this work, we experiement with the DINOv2 model for radiology, and compare the results to other supervised, self-supervised, weakly-supervised models.
 
 ## Citing 
 
