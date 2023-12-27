@@ -8,7 +8,7 @@ In this work, we experiement with the DINOv2 model for radiology, and compare th
 
 [[`Logs`](https://drive.google.com/drive/folders/1kJpKJIyC-3m3unqm6HmWjhnYGS2jxxwj)][[`Datasets`](https://drive.google.com/drive/folders/1jAeikq-3sSKWV3QSU7gQtrckG3OXKOj7)]
 
-You can find all the logs for all our training experiements, as well as all the model checkpoints, using the `logs` button. You can also find all the train, validation, and test splits, using the `Datasets`button.
+You can find all the logs for all our training experiements, as well as all the model checkpoints, using the `logs` button. You can also find all the train, validation, and test splits, using the `Datasets` button.
 
 # Reproduce Experiments
 To test the models for classification, you can use the following command.
